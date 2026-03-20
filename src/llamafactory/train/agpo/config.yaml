@@ -1,0 +1,9 @@
+controller:
+  ema_alpha: 0.1
+  uncertainty_ema_init: 0.0
+  step_kl_ema_init: 0.0
+  entropy_scale: 0.1
+  clip_entropy_floor: 1.0e-8
+logging:
+  debug_reward_samples: true
+  max_debug_reward_items: 3
