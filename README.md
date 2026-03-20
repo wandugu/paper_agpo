@@ -1,72 +1,174 @@
-# AGPO 训练指南
+# AGPO Training Guide
 
-本目录提供的 `CustomAGPOTrainer` 在原有 PPO 训练器基础上扩展，支持适应性群体策略优化（Adaptive Group Policy Optimization, AGPO）。它由 `llamafactory-cli train` 命令在强化学习阶段（`stage: ppo`）下、将 `rl_algo` 设为 `agpo` 时自动启用。下文概述了代码结构、训练流程以及关键超参数设置。
+This directory provides `CustomAGPOTrainer`, an extension of the PPO training stack for **Adaptive Group Policy Optimization (AGPO)**. When you launch reinforcement learning with `llamafactory-cli train` under `stage: ppo` and set `rl_algo: agpo`, the AGPO workflow is enabled automatically. This README explains the implementation structure, the training loop, and how the code corresponds to the AGPO method.
 
-## 架构概览
+## Method Overview
 
-- `workflow.py` 会加载分词器、数据集、带 value head 的策略模型，并构建参考模型与奖励模型，随后实例化 `CustomAGPOTrainer` 并执行训练流程。训练完成后会保存模型、状态并可选绘制损失与奖励曲线。【F:src/llamafactory/train/agpo/workflow.py†L31-L74】
-- `trainer.py` 扩展自 `trl.PPOTrainer`，增加了 AGPO 专用的群体采样、奖励归一化、自适应裁剪与温度调度等逻辑，并复用了 LLaMA-Factory 现有的优化器、调度器及回调体系。【F:src/llamafactory/train/agpo/trainer.py†L63-L610】
-- 当 `stage` 为 `ppo` 且 `rl_algo` 设为 `agpo` 时，主训练入口 `tuner.py` 会调度上述工作流；否则退回到传统 PPO。【F:src/llamafactory/train/tuner.py†L63-L67】
+AGPO is designed around **one probe and two controllers**:
 
-## 训练流程
+- A **probe phase** samples grouped rollouts at a base temperature and extracts a shared statistical state.
+- An **adaptive temperature controller (ATS)** adjusts rollout diversity based on uncertainty.
+- An **adaptive clipping controller** sets the PPO/GRPO clip radius based on uncertainty and optimization stability signals.
 
-一次完整的 AGPO 步骤包含下列阶段：
+In the method formulation, the key statistics are:
 
-1. **同步旧策略**：在每个梯度步开始前复制当前策略，用于后续重要性采样比率的计算。【F:src/llamafactory/train/agpo/trainer.py†L385-L399】
-2. **探测采样 (Probe Sampling)**：针对每条提示，使用基础温度 `agpo_tau_base` 生成一组候选回复，计算奖励分散度、投票熵与可选偏度，用于评估不确定性。【F:src/llamafactory/train/agpo/trainer.py†L467-L490】
-3. **温度自适应**：依据不确定性放缩基础温度，并限制在 `[agpo_tau_min, agpo_tau_max]`，以控制正式训练样本的探索强度。【F:src/llamafactory/train/agpo/trainer.py†L491-L500】
-4. **训练采样与优势归一化**：使用自适应温度重新生成响应，按所选分散度指标（标准差、MAD 或 IQR）归一化奖励，得到群体内优势值。【F:src/llamafactory/train/agpo/trainer.py†L502-L514】
-5. **自适应裁剪**：结合奖励分散度与历史 KL (`step_kl`) 调节 PPO 裁剪范围，实现更稳健的策略更新。【F:src/llamafactory/train/agpo/trainer.py†L524-L544】
-6. **统计与日志**：记录温度、分散度、KL、奖励均值等指标；可选记录探测阶段统计与 token 预算，用于调试与可视化。【F:src/llamafactory/train/agpo/trainer.py†L546-L569】
+- **Reward dispersion** `\hat{\sigma}`: measures how spread the grouped rewards are.
+- **Reward skewness** `|\tilde{\kappa}_3(r)|`: captures asymmetric tails in the reward distribution.
+- **Probe vote entropy** `\mathcal{E}_{probe}`: measures answer-level disagreement among probe rollouts.
+- **Policy entropy** `H(\pi)`: reflects exploration capacity of the current policy.
+- **Step-wise KL drift** `\widehat{D}_{KL}^{step}`: tracks how far the new policy moves from the previous one.
 
-> 注意：AGPO 训练器当前不支持显式的验证数据集加载，如需评估需在训练结束后单独运行推理或评测脚本。【F:src/llamafactory/train/agpo/trainer.py†L81-L84】
+The overall idea is:
 
-## 快速开始
+1. Use a probe rollout group to estimate uncertainty.
+2. Increase or decrease sampling temperature around `tau_base` so that uncertain batches explore more and easier batches exploit more.
+3. Adapt the clip radius so that updates are larger when exploration is needed and smaller when instability risk is high.
 
-1. 准备监督微调（SFT）产出的策略模型与奖励模型（LoRA 或全量权重均可）。
-2. 复制一个 PPO 示例配置（如 `examples/train_lora/llama3_lora_ppo.yaml`），并修改以下关键字段：
+This shared-probe design is the central idea of AGPO: **the same probe statistics jointly control exploration and update magnitude**.
+
+## How the Code Maps to the Method
+
+### 1. Grouped rollouts and group-normalized advantage
+
+For each prompt, AGPO samples a **group** of candidate responses from the **same policy** rather than using multiple agents. Each response receives a reward, and the trainer normalizes rewards within the group to produce rollout-level advantages. In practice, those rollout-level advantages are broadcast to token positions when computing the loss.
+
+This corresponds to the grouped-rollout reinforcement learning setup in the method section, where AGPO inherits the GRPO-style surrogate and replaces fixed clipping with an adaptive controller.
+
+### 2. Probe phase
+
+Before the actual training rollouts are collected, the trainer performs a **probe sampling** step at `agpo_tau_base`. The probe responses are used only to estimate controller statistics and are not reused for gradient updates.
+
+The probe stage computes:
+
+- reward dispersion (`std`, `MAD`, or `IQR` depending on configuration),
+- vote entropy over extracted answers,
+- optional skewness statistics,
+- uncertainty scores for temperature adaptation.
+
+This implements the method's probe--train loop.
+
+### 3. Adaptive Temperature Sampling (ATS)
+
+The temperature controller uses the uncertainty score built from:
+
+- reward dispersion,
+- probe vote entropy,
+- reward skewness.
+
+The raw uncertainty score is centered by a running EMA baseline. If the current batch is more uncertain than the running baseline, temperature is increased; otherwise it is decreased, while always staying inside `[agpo_tau_min, agpo_tau_max]`.
+
+Conceptually, this matches the ATS rule in the method section:
+
+- higher-than-baseline uncertainty `=>` hotter sampling,
+- lower-than-baseline uncertainty `=>` cooler sampling.
+
+### 4. Adaptive clipping
+
+Instead of using a fixed PPO clip radius, AGPO computes an adaptive clipping value from:
+
+- a base clip value,
+- reward dispersion,
+- optional skewness,
+- policy entropy,
+- detached step-wise KL drift.
+
+The goal is to enlarge the feasible update region when the policy should remain exploratory, but shrink it when reward variability or policy drift suggests instability risk.
+
+In other words:
+
+- **more uncertainty / entropy** can justify a wider update window,
+- **more variance / asymmetry / KL drift** tighten the trust region.
+
+### 5. AGPO objective
+
+The final training objective keeps the GRPO/PPO clipped-surrogate structure, but substitutes the fixed `epsilon` with `epsilon_adaptive`. The reference-policy KL regularizer still acts as an anchor, while the detached step-wise KL is used only as a controller signal.
+
+This separation is important:
+
+- `D_KL(pi_old || pi_new)` is used as a **drift signal** for control,
+- `D_KL(pi_theta || pi_ref)` is used as a **regularizer** in optimization.
+
+## Architecture Overview
+
+- `workflow.py` loads the tokenizer, dataset, policy model with value head, reference model, and reward model, then instantiates `CustomAGPOTrainer` and runs training.
+- `trainer.py` extends `trl.PPOTrainer` with AGPO-specific grouped sampling, reward normalization, adaptive temperature scheduling, adaptive clipping, and logging.
+- `tuner.py` dispatches to the AGPO workflow when `stage=ppo` and `rl_algo=agpo`; otherwise it falls back to the standard PPO path.
+
+## Training Loop
+
+A full AGPO update step follows this sequence:
+
+1. **Sync the old policy**  
+   At the beginning of each gradient step, the current policy is copied so that importance ratios and detached KL drift can be measured against the previous policy snapshot.
+
+2. **Probe sampling**  
+   For each prompt, the trainer samples one probe group at `agpo_tau_base` and computes reward dispersion, vote entropy, and optional skewness.
+
+3. **Adaptive temperature update**  
+   The trainer converts the probe statistics into an uncertainty score, centers it using an EMA baseline, and updates the rollout temperature within the configured bounds.
+
+4. **Training rollout sampling and advantage normalization**  
+   The trainer resamples responses using the adaptive temperature, evaluates rewards, and normalizes grouped rewards into advantages.
+
+5. **Adaptive clipping update**  
+   The PPO/GRPO clip radius is adjusted using reward dispersion and historical step-wise KL drift, together with the configured controller bounds.
+
+6. **Optimization and logging**  
+   The policy is updated, and metrics such as temperature, dispersion, KL, and rewards are recorded for debugging and visualization.
+
+> Note: the current AGPO trainer does not load a validation dataset directly. If you need evaluation, run a separate inference or benchmark step after training.
+
+## Quick Start
+
+1. Prepare a policy model from supervised fine-tuning (SFT) and a reward model.
+2. Copy a PPO configuration file such as `examples/train_lora/llama3_lora_ppo.yaml` and update the AGPO-specific fields:
 
 ```yaml
 stage: ppo
-rl_algo: agpo            # 启用 AGPO
+rl_algo: agpo
 reward_model: <path-to-reward-model>
-reward_model_type: lora  # 或 full/api，需与实际奖励模型类型一致
-agpo_group_size: 8       # 每个 prompt 采样的回复数量
+reward_model_type: lora   # or full / api
+agpo_group_size: 8
 ```
 
-3. 使用 CLI 启动训练：
+3. Launch training:
 
 ```bash
 llamafactory-cli train path/to/your_agpo_config.yaml
 ```
 
-如需分布式或 Ray 训练，可沿用官方 README 中关于 `FORCE_TORCHRUN` 或 `USE_RAY` 的启动方式；AGPO 与现有基础设施兼容。【F:src/llamafactory/train/tuner.py†L63-L98】
+If you need distributed or Ray-based training, you can reuse the standard launch patterns already supported by the project.
 
-## 关键超参数
+## Key Hyperparameters
 
-| 参数 | 默认值 | 作用 | 代码位置 |
-| --- | --- | --- | --- |
-| `agpo_group_size` | 8 | 每个 prompt 生成的响应数量，决定群体统计的稳定性。 | 【F:src/llamafactory/hparams/finetuning_args.py†L227-L230】 |
-| `agpo_tau_base` / `agpo_tau_min` / `agpo_tau_max` | 1.0 / 0.5 / 1.5 | 探测与训练时的温度上下界，控制采样多样性。 | 【F:src/llamafactory/hparams/finetuning_args.py†L259-L270】 |
-| `agpo_lambda_temp` | 0.15 | 将不确定性映射为温度增益的比例系数。 | 【F:src/llamafactory/hparams/finetuning_args.py†L271-L274】 |
-| `agpo_use_robust_dispersion` | `std` | 奖励分散度度量方式（标准差、MAD 或 IQR）。 | 【F:src/llamafactory/hparams/finetuning_args.py†L255-L258】 |
-| `agpo_w_r` / `agpo_w_e` / `agpo_w_k` | 1.0 / 1.0 / 0.0 | 组合奖励分散度、投票熵与偏度的权重，用于估计不确定性。 | 【F:src/llamafactory/hparams/finetuning_args.py†L275-L286】 |
-| `agpo_eps_base` / `agpo_eps_min` / `agpo_eps_max` | 0.2 / 0.05 / 0.4 | PPO 裁剪区间的基础值与上下限。 | 【F:src/llamafactory/hparams/finetuning_args.py†L231-L242】 |
-| `agpo_alpha_var` / `agpo_gamma_stepkl` | 1.0 / 0.5 | 依据奖励方差与历史 KL 动态调整裁剪半径。 | 【F:src/llamafactory/hparams/finetuning_args.py†L243-L249】 |
-| `agpo_beta_ref_kl` | 0.03 | 参考策略 KL 正则项权重。 | 【F:src/llamafactory/hparams/finetuning_args.py†L287-L289】 |
-| `agpo_log_probe_metrics` | True | 是否记录探测阶段统计，便于诊断。 | 【F:src/llamafactory/hparams/finetuning_args.py†L295-L297】 |
-| `agpo_count_probe_tokens_in_budget` | True | 是否将探测样本的 token 计入预算，避免超长序列。 | 【F:src/llamafactory/hparams/finetuning_args.py†L291-L293】 |
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `agpo_group_size` | 8 | Number of responses sampled per prompt. Larger groups provide more stable group statistics. |
+| `agpo_tau_base` / `agpo_tau_min` / `agpo_tau_max` | 1.0 / 0.5 / 1.5 | Base temperature and allowable temperature range for probe and training sampling. |
+| `agpo_lambda_temp` | 0.15 | Scales how strongly centered uncertainty changes the temperature. |
+| `agpo_use_robust_dispersion` | `std` | Reward dispersion estimator: standard deviation, MAD, or IQR. |
+| `agpo_w_r` / `agpo_w_e` / `agpo_w_k` | 1.0 / 1.0 / 0.0 | Weights for reward dispersion, vote entropy, and skewness in the ATS uncertainty score. |
+| `agpo_eps_base` / `agpo_eps_min` / `agpo_eps_max` | 0.2 / 0.05 / 0.4 | Base clip radius and controller bounds for adaptive clipping. |
+| `agpo_alpha_var` / `agpo_gamma_stepkl` | 1.0 / 0.5 | Sensitivity of adaptive clipping to reward variance and step-wise KL drift. |
+| `agpo_beta_ref_kl` | 0.03 | Weight of the reference-policy KL regularizer. |
+| `agpo_log_probe_metrics` | True | Whether to log probe-stage statistics for diagnostics. |
+| `agpo_count_probe_tokens_in_budget` | True | Whether probe tokens count toward the rollout token budget. |
 
-## 日志与可视化
+## Logging and Visualization
 
-- 训练过程中会周期性输出 `loss`、`reward`、`learning_rate` 等指标，同时在 `agpo_trainer.state.log_history` 中追加详细记录，便于对接 W&B / TensorBoard 等外部工具。【F:src/llamafactory/train/agpo/trainer.py†L412-L440】
-- 每个 prompt 的统计信息会写入 `agpo/*` 命名空间，例如 `agpo/tau`、`agpo/sigma`、`agpo/step_kl` 等，可用于分析策略探索程度与奖励分布。【F:src/llamafactory/train/agpo/trainer.py†L548-L563】
-- 若在配置中启用 `plot_loss: true`，训练结束后会自动生成包含损失与奖励曲线的图像文件。【F:src/llamafactory/train/agpo/workflow.py†L72-L74】
+- The trainer periodically records metrics such as `loss`, `reward`, and `learning_rate`.
+- AGPO-specific metrics are logged under names such as `agpo/tau`, `agpo/sigma`, and `agpo/step_kl`.
+- If `plot_loss: true` is enabled, the workflow can generate training curves after training finishes.
 
-## 实践建议
+Because AGPO depends heavily on controller dynamics, these logs are especially useful for diagnosing whether the model is over-exploring, collapsing to low-diversity outputs, or drifting too aggressively.
 
-- 当奖励模型波动较大时，可适当调高 `agpo_w_r` 或 `agpo_alpha_var` 以增强稳定性；若希望鼓励多样化响应，可提高 `agpo_w_e` 与 `agpo_tau_max`。
-- 若使用 API 奖励模型（`reward_model_type: api`），请确保服务端实现了 `get_rewards_from_server` 所需的接口格式。【F:src/llamafactory/train/agpo/trainer.py†L611-L638】
-- AGPO 仍依赖基础 PPO 设置（学习率、梯度裁剪、混合精度等），可沿用既有经验调整这些参数。【F:src/llamafactory/train/agpo/trainer.py†L85-L154】【F:src/llamafactory/train/agpo/trainer.py†L407-L610】
+## Practical Recommendations
 
-欢迎在 Issues 中反馈使用体验或贡献新的示例配置，帮助我们进一步完善 AGPO 生态。
+- If the reward model is noisy, consider increasing `agpo_w_r` or `agpo_alpha_var` to make the controller more conservative.
+- If you want more response diversity, consider increasing `agpo_w_e` or raising `agpo_tau_max`.
+- If you use an API reward model (`reward_model_type: api`), make sure the serving endpoint matches the format expected by `get_rewards_from_server`.
+- AGPO still depends on the usual PPO settings such as learning rate, gradient clipping, precision mode, and rollout budget, so tune them together rather than in isolation.
+
+## In One Sentence
+
+AGPO combines **grouped rollouts**, **adaptive temperature sampling**, and **adaptive clipping** into a single probe--train reinforcement learning loop so that the model explores more when uncertainty is high and updates more conservatively when optimization risk rises.
