@@ -111,7 +111,7 @@ A full AGPO update step follows this sequence:
    The trainer resamples responses using the adaptive temperature, evaluates rewards, and normalizes grouped rewards into advantages.
 
 5. **Adaptive clipping update**  
-   The PPO/GRPO clip radius is adjusted using reward dispersion and historical step-wise KL drift, together with the configured controller bounds.
+   The PPO/GRPO clip radius is adjusted using probe reward dispersion, probe vote entropy, policy entropy, skewness, and historical step-wise KL drift, together with the configured controller bounds.
 
 6. **Optimization and logging**  
    The policy is updated, and metrics such as temperature, dispersion, KL, and rewards are recorded for debugging and visualization.
@@ -144,12 +144,13 @@ If you need distributed or Ray-based training, you can reuse the standard launch
 | Parameter | Default | Description |
 | --- | --- | --- |
 | `agpo_group_size` | 8 | Number of responses sampled per prompt. Larger groups provide more stable group statistics. |
+| `agpo_update_epochs` | 4 | Number of optimization passes over each freshly collected training rollout batch. |
 | `agpo_tau_base` / `agpo_tau_min` / `agpo_tau_max` | 1.0 / 0.5 / 1.5 | Base temperature and allowable temperature range for probe and training sampling. |
 | `agpo_lambda_temp` | 0.15 | Scales how strongly centered uncertainty changes the temperature. |
 | `agpo_use_robust_dispersion` | `std` | Reward dispersion estimator: standard deviation, MAD, or IQR. |
 | `agpo_w_r` / `agpo_w_e` / `agpo_w_k` | 1.0 / 1.0 / 0.0 | Weights for reward dispersion, vote entropy, and skewness in the ATS uncertainty score. |
 | `agpo_eps_base` / `agpo_eps_min` / `agpo_eps_max` | 0.2 / 0.05 / 0.4 | Base clip radius and controller bounds for adaptive clipping. |
-| `agpo_alpha_var` / `agpo_gamma_stepkl` | 1.0 / 0.5 | Sensitivity of adaptive clipping to reward variance and step-wise KL drift. |
+| `agpo_alpha_var` / `agpo_gamma_stepkl` / `agpo_delta_probe_entropy` | 1.0 / 0.5 / 0.1 | Sensitivity of adaptive clipping to probe reward dispersion, step-wise KL drift, and probe vote entropy. |
 | `agpo_beta_ref_kl` | 0.03 | Weight of the reference-policy KL regularizer. |
 | `agpo_log_probe_metrics` | True | Whether to log probe-stage statistics for diagnostics. |
 | `agpo_count_probe_tokens_in_budget` | True | Whether probe tokens count toward the rollout token budget. |

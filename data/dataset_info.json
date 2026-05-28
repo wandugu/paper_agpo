@@ -1,84 +1,170 @@
 {
-  "identity": {
-    "file_name": "identity.json"
-  },
-  "alpaca_en_demo": {
-    "file_name": "alpaca_en_demo.json"
-  },
-  "alpaca_zh_demo": {
-    "file_name": "alpaca_zh_demo.json"
-  },
-  "glaive_toolcall_en_demo": {
-    "file_name": "glaive_toolcall_en_demo.json",
-    "formatting": "sharegpt",
+  "gsm8k_train": {
+    "file_name": "gsm8k/train.json",
     "columns": {
-      "messages": "conversations",
-      "tools": "tools"
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
     }
   },
-  "glaive_toolcall_zh_demo": {
-    "file_name": "glaive_toolcall_zh_demo.json",
-    "formatting": "sharegpt",
+  "gsm8k_test": {
+    "file_name": "gsm8k/test.json",
     "columns": {
-      "messages": "conversations",
-      "tools": "tools"
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
     }
   },
-  "mllm_demo": {
-    "file_name": "mllm_demo.json",
-    "formatting": "sharegpt",
+  "gsm8k_rl_train": {
+    "file_name": "gsm8k/rl_train.json",
     "columns": {
-      "messages": "messages",
-      "images": "images"
-    },
-    "tags": {
-      "role_tag": "role",
-      "content_tag": "content",
-      "user_tag": "user",
-      "assistant_tag": "assistant"
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
     }
   },
-  "mllm_audio_demo": {
-    "file_name": "mllm_audio_demo.json",
-    "formatting": "sharegpt",
+  "gsm8k_rl_test": {
+    "file_name": "gsm8k/rl_test.json",
     "columns": {
-      "messages": "messages",
-      "audios": "audios"
-    },
-    "tags": {
-      "role_tag": "role",
-      "content_tag": "content",
-      "user_tag": "user",
-      "assistant_tag": "assistant"
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
     }
   },
-  "mllm_video_demo": {
-    "file_name": "mllm_video_demo.json",
-    "formatting": "sharegpt",
+  "mmlu_stem_dev": {
+    "file_name": "mmlu_stem/dev.json",
     "columns": {
-      "messages": "messages",
-      "videos": "videos"
-    },
-    "tags": {
-      "role_tag": "role",
-      "content_tag": "content",
-      "user_tag": "user",
-      "assistant_tag": "assistant"
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
     }
   },
-  "mllm_video_audio_demo": {
-    "file_name": "mllm_video_audio_demo.json",
-    "formatting": "sharegpt",
+  "mmlu_stem_val": {
+    "file_name": "mmlu_stem/val.json",
     "columns": {
-      "messages": "messages",
-      "videos": "videos",
-      "audios": "audios"
-    },
-    "tags": {
-      "role_tag": "role",
-      "content_tag": "content",
-      "user_tag": "user",
-      "assistant_tag": "assistant"
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mmlu_stem_test": {
+    "file_name": "mmlu_stem/test.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "math_train": {
+    "file_name": "math/train.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "math_test": {
+    "file_name": "math/test.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "cmath_validation": {
+    "file_name": "cmath/validation.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "cmath_test": {
+    "file_name": "cmath/test.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "sat_math_test": {
+    "file_name": "agieval/sat_math_test.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "gaokao_mathqa_test": {
+    "file_name": "agieval/gaokao_mathqa_test.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "gaokao_mathcloze_test": {
+    "file_name": "agieval/gaokao_mathcloze_test.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "ocw_courses_test": {
+    "file_name": "ocw_courses/test.json",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_sft_train": {
+    "file_name": "code_contests/sft_train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_sft_valid": {
+    "file_name": "code_contests/sft_valid.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_sft_test": {
+    "file_name": "code_contests/sft_test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_rl_train": {
+    "file_name": "code_contests/rl_train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_rl_valid": {
+    "file_name": "code_contests/rl_valid.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_rl_test": {
+    "file_name": "code_contests/rl_test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
     }
   },
   "alpaca_en": {
@@ -471,26 +557,6 @@
   "ultrachat_de": {
     "hf_hub_url": "mayflowergmbh/ultra-chat_de"
   },
-  "dpo_en_demo": {
-    "file_name": "dpo_en_demo.json",
-    "ranking": true,
-    "formatting": "sharegpt",
-    "columns": {
-      "messages": "conversations",
-      "chosen": "chosen",
-      "rejected": "rejected"
-    }
-  },
-  "dpo_zh_demo": {
-    "file_name": "dpo_zh_demo.json",
-    "ranking": true,
-    "formatting": "sharegpt",
-    "columns": {
-      "messages": "conversations",
-      "chosen": "chosen",
-      "rejected": "rejected"
-    }
-  },
   "dpo_mix_en": {
     "hf_hub_url": "llamafactory/DPO-En-Zh-20k",
     "subset": "en",
@@ -584,20 +650,6 @@
     "hf_hub_url": "mayflowergmbh/intel_orca_dpo_pairs_de",
     "ranking": true
   },
-  "kto_en_demo": {
-    "file_name": "kto_en_demo.json",
-    "formatting": "sharegpt",
-    "columns": {
-      "messages": "messages",
-      "kto_tag": "label"
-    },
-    "tags": {
-      "role_tag": "role",
-      "content_tag": "content",
-      "user_tag": "user",
-      "assistant_tag": "assistant"
-    }
-  },
   "kto_mix_en": {
     "hf_hub_url": "argilla/kto-mix-15k",
     "formatting": "sharegpt",
@@ -619,18 +671,6 @@
       "prompt": "prompt",
       "response": "completion",
       "kto_tag": "label"
-    }
-  },
-  "wiki_demo": {
-    "file_name": "wiki_demo.txt",
-    "columns": {
-      "prompt": "text"
-    }
-  },
-  "c4_demo": {
-    "file_name": "c4_demo.jsonl",
-    "columns": {
-      "prompt": "text"
     }
   },
   "refinedweb": {

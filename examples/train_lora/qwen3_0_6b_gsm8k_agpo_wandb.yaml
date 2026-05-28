@@ -1,0 +1,59 @@
+### model
+model_name_or_path: models/Qwen3-0.6B
+reward_model: http://127.0.0.1:8008
+reward_model_type: api
+trust_remote_code: true
+
+### method
+stage: ppo
+rl_algo: agpo
+do_train: true
+finetuning_type: lora
+lora_rank: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target: all
+agpo_group_size: 2
+agpo_update_epochs: 1
+agpo_tau_base: 1.0
+agpo_tau_min: 0.6
+agpo_tau_max: 1.3
+agpo_lambda_temp: 0.15
+agpo_eps_base: 0.2
+agpo_eps_min: 0.05
+agpo_eps_max: 0.4
+agpo_beta_ref_kl: 0.03
+agpo_use_robust_dispersion: std
+
+### dataset
+dataset: gsm8k_rl_train
+template: qwen3
+cutoff_len: 1024
+max_samples: 200
+overwrite_cache: true
+preprocessing_num_workers: 4
+dataloader_num_workers: 0
+
+### output
+output_dir: saves/qwen3-0.6b/lora/gsm8k_agpo
+logging_steps: 1
+save_steps: 10
+plot_loss: true
+overwrite_output_dir: true
+report_to: wandb
+run_name: qwen3-0.6b-gsm8k-agpo-direct
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 1
+learning_rate: 1.0e-5
+max_steps: 10
+lr_scheduler_type: cosine
+warmup_ratio: 0.1
+bf16: true
+ddp_timeout: 180000000
+
+### generate
+max_new_tokens: 256
+top_k: 0
+top_p: 0.9

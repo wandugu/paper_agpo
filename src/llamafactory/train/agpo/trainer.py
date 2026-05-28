@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
 import math
 import os
+import re
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -28,7 +28,7 @@ from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 from transformers import GenerationConfig, Trainer, TrainerControl, TrainerState
 from transformers.optimization import get_scheduler
-from transformers.trainer import DEFAULT_CALLBACKS
+from transformers.trainer import DEFAULT_CALLBACKS, get_reporting_integration_callbacks
 from transformers.trainer_callback import CallbackHandler
 from transformers.trainer_pt_utils import remove_dummy_checkpoint
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
@@ -95,6 +95,7 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
 
         backward_batch_size = training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps
         ppo_config = PPOConfig(
+            exp_name=training_args.run_name or "",
             model_name=model_args.model_name_or_path,
             learning_rate=training_args.learning_rate,
             mini_batch_size=training_args.per_device_train_batch_size,
@@ -106,6 +107,19 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
             optimize_device_cache=True,
             accelerator_kwargs={"step_scheduler_with_optimizer": False},
             log_with=training_args.report_to[0] if training_args.report_to else None,
+            tracker_project_name=os.environ.get("WANDB_PROJECT", "trl"),
+            tracker_kwargs={
+                "wandb": {
+                    key: value
+                    for key, value in {
+                        "name": training_args.run_name,
+                        "group": os.environ.get("WANDB_RUN_GROUP"),
+                    }.items()
+                    if value
+                }
+            }
+            if training_args.report_to and training_args.report_to[0] == "wandb"
+            else None,
             project_kwargs={"logging_dir": training_args.logging_dir},
         )
 
@@ -119,10 +133,14 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
                 ppo_config.log_with = None
 
         if training_args.max_steps > 0:
-            num_training_steps = training_args.max_steps
+            num_training_steps = training_args.max_steps * finetuning_args.agpo_update_epochs
         else:
             total_train_batch_size = backward_batch_size * training_args.world_size
-            num_training_steps = training_args.num_train_epochs * math.ceil(len(train_dataset) / total_train_batch_size)
+            num_training_steps = (
+                training_args.num_train_epochs
+                * math.ceil(len(train_dataset) / total_train_batch_size)
+                * finetuning_args.agpo_update_epochs
+            )
 
         optimizer = self.create_optimizer(model, training_args, finetuning_args)
         scheduler = self.create_scheduler(training_args, num_training_steps, optimizer)
@@ -149,10 +167,10 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
         self.beta_ref_kl = finetuning_args.agpo_beta_ref_kl
         self.uncertainty_ema = float(self.agpo_runtime_config.get('controller', {}).get('uncertainty_ema_init', 0.0))
         self.step_kl_ema = float(self.agpo_runtime_config.get('controller', {}).get('step_kl_ema_init', 0.0))
+        self.entropy_ref_ema = float(self.agpo_runtime_config.get('controller', {}).get('entropy_ref_ema_init', 0.0))
         self.clip_entropy_floor = float(self.agpo_runtime_config.get('controller', {}).get('clip_entropy_floor', 1e-8))
         self.debug_reward_samples = bool(self.agpo_runtime_config.get('logging', {}).get('debug_reward_samples', True))
         self.max_debug_reward_items = int(self.agpo_runtime_config.get('logging', {}).get('max_debug_reward_items', 3))
-        self.old_policy = self._clone_model()
 
         self.generation_config = GenerationConfig(
             pad_token_id=self.tokenizer.pad_token_id,
@@ -164,12 +182,23 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
         self.control = TrainerControl()
         self.is_deepspeed_enabled = getattr(self.accelerator.state, "deepspeed_plugin", None) is not None
         self.is_fsdp_enabled = getattr(self.accelerator.state, "fsdp_plugin", None) is not None
-        callbacks = DEFAULT_CALLBACKS if callbacks is None else DEFAULT_CALLBACKS + callbacks
+        default_callbacks = DEFAULT_CALLBACKS + get_reporting_integration_callbacks(training_args.report_to)
+        callbacks = default_callbacks if callbacks is None else default_callbacks + callbacks
         self.callback_handler = CallbackHandler(
             callbacks, self.accelerator.unwrap_model(self.model), self.tokenizer, self.optimizer, self.lr_scheduler
         )
 
         self.amp_context = torch.autocast(self.current_device.type)
+
+        if finetuning_args.reward_model_type == "full":
+            if self.is_deepspeed_enabled:
+                if not (
+                    getattr(reward_model.pretrained_model, "is_loaded_in_8bit", False)
+                    or getattr(reward_model.pretrained_model, "is_loaded_in_4bit", False)
+                ):
+                    self.reward_model = self._prepare_deepspeed(self.reward_model)
+            else:
+                self.reward_model = self.accelerator.prepare_model(self.reward_model, evaluation_mode=True)
 
         self.add_callback(FixValueHeadModelCallback)
         if processor is not None:
@@ -187,18 +216,6 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
     # ------------------------------------------------------------------
     # Helper functions
     # ------------------------------------------------------------------
-    def _clone_model(self) -> "AutoModelForCausalLMWithValueHead":
-        unwrapped = self.accelerator.unwrap_model(self.model)
-        cloned = copy.deepcopy(unwrapped)
-        cloned.to(self.current_device)
-        cloned.eval()
-        return cloned
-
-    def _sync_old_policy(self) -> None:
-        unwrapped = self.accelerator.unwrap_model(self.model)
-        self.old_policy.load_state_dict(unwrapped.state_dict())
-        self.old_policy.eval()
-
     @staticmethod
     def _trim_response(sequence: "torch.Tensor", pad_token_id: int) -> "torch.Tensor":
         sequence = sequence.detach().clone()
@@ -279,7 +296,7 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
         attention_mask: "torch.Tensor",
         response_mask: "torch.Tensor",
         requires_grad: bool,
-    ) -> tuple["torch.Tensor", "torch.Tensor", "torch.Tensor", "torch.Tensor"]:
+    ) -> tuple["torch.Tensor", "torch.Tensor", "torch.Tensor"]:
         context = torch.enable_grad() if requires_grad else torch.no_grad()
         with context, self.amp_context:
             outputs = model(input_ids=input_ids, attention_mask=attention_mask, return_dict=True, use_cache=False)
@@ -290,10 +307,9 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
         target_tokens = input_ids[:, 1:]
         token_logprobs = log_probs.gather(-1, target_tokens.unsqueeze(-1)).squeeze(-1)
         mask = response_mask[:, 1:]
-        seq_logprobs = (token_logprobs * mask).sum(dim=-1)
         masked_token_count = mask.sum().clamp_min(1.0)
         policy_entropy = (token_entropy * mask).sum() / masked_token_count
-        return seq_logprobs, token_logprobs, mask, policy_entropy
+        return token_logprobs, mask, policy_entropy
 
     def _compute_ref_kl(
         self,
@@ -311,39 +327,76 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
         ref_log_probs = F.log_softmax(ref_logits[:, :-1, :], dim=-1)
         target_tokens = input_ids[:, 1:]
         token_logprobs_ref = ref_log_probs.gather(-1, target_tokens.unsqueeze(-1)).squeeze(-1)
-        kl_tokens = (token_logprobs_new.detach() - token_logprobs_ref) * mask
-        return kl_tokens.sum(dim=-1).mean()
+        kl_tokens = (token_logprobs_new - token_logprobs_ref) * mask
+        return kl_tokens.sum() / mask.sum().clamp_min(1.0)
 
     @staticmethod
-    def _dispersion(values: torch.Tensor, mode: str) -> torch.Tensor:
+    def _bessel_std(values: torch.Tensor) -> torch.Tensor:
+        if values.numel() < 2:
+            return torch.zeros((), device=values.device)
+        return values.std(unbiased=True)
+
+    @classmethod
+    def _dispersion(cls, values: torch.Tensor, mode: str, fallback_to_std: bool = False) -> torch.Tensor:
         if values.numel() == 0:
             return torch.zeros((), device=values.device)
         if mode == 'mad':
             median = values.median()
-            return 1.4826 * (values - median).abs().median()
-        if mode == 'iqr':
+            dispersion = 1.4826 * (values - median).abs().median()
+        elif mode == 'iqr':
             q75 = values.quantile(0.75)
             q25 = values.quantile(0.25)
-            return (q75 - q25) / 1.349
-        return values.std(unbiased=False)
+            dispersion = (q75 - q25) / 1.349
+        else:
+            dispersion = cls._bessel_std(values)
+
+        if fallback_to_std and values.numel() > 1 and dispersion <= 1e-8:
+            if not torch.allclose(values, values[0].expand_as(values)):
+                dispersion = cls._bessel_std(values)
+
+        return dispersion
 
     @staticmethod
     def _vote_entropy(texts: list[str]) -> float:
-        counter = Counter(texts)
+        if not texts:
+            return 0.0
+
+        counter = Counter(CustomAGPOTrainer._extract_vote_key(text) for text in texts)
         probs = torch.tensor(list(counter.values()), dtype=torch.float32)
         probs = probs / probs.sum()
         entropy = -(probs * probs.clamp_min(1e-12).log()).sum().item()
         return float(entropy)
 
     @staticmethod
-    def _skewness(values: torch.Tensor) -> float:
+    def _extract_vote_key(text: str) -> str:
+        stripped = text.strip()
+        boxed = re.findall(r"\\boxed\{([^{}]+)\}", stripped)
+        if boxed:
+            return boxed[-1].strip().lower()
+
+        if "####" in stripped:
+            return stripped.rsplit("####", 1)[-1].strip().lower()
+
+        numbers = re.findall(r"[-+]?\d*\.?\d+(?:/[1-9]\d*)?", stripped.replace(",", ""))
+        if numbers:
+            return numbers[-1].strip().lower()
+
+        return re.sub(r"\s+", " ", stripped).lower()
+
+    @staticmethod
+    def _skewness(values: torch.Tensor, sigma_min: float = 1e-6, kappa_max: float = 10.0) -> float:
         if values.numel() == 0:
             return 0.0
         mean = values.mean()
-        std = values.std(unbiased=False)
-        if std <= 0:
+        std = values.std(unbiased=True) if values.numel() > 1 else torch.zeros((), device=values.device)
+        if std < sigma_min:
             return 0.0
-        skew = (((values - mean) / std) ** 3).mean().item()
+        skew_tensor = (((values - mean) / std) ** 3).mean()
+        if values.numel() > 2:
+            n = values.numel()
+            skew_tensor = (math.sqrt(n * (n - 1)) / (n - 2)) * skew_tensor
+
+        skew = torch.clamp(skew_tensor, min=-kappa_max, max=kappa_max).item()
         return float(skew)
 
     @staticmethod
@@ -357,9 +410,19 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
         return {key: float(sum(values) / len(values)) for key, values in merged.items()}
 
     @staticmethod
-    def compute_centered_uncertainty(raw_uncertainty: float, uncertainty_ema: float, ema_alpha: float) -> tuple[float, float]:
+    def compute_centered_uncertainty(
+        raw_uncertainty: float,
+        uncertainty_ema: float,
+        ema_alpha: float,
+        uncertainty_floor: float = 1e-8,
+    ) -> tuple[float, float]:
+        if uncertainty_ema <= uncertainty_floor:
+            updated_ema = raw_uncertainty
+            return 0.0, updated_ema
+
+        centered = (raw_uncertainty - uncertainty_ema) / (uncertainty_ema + uncertainty_floor)
         updated_ema = ema_alpha * raw_uncertainty + (1.0 - ema_alpha) * uncertainty_ema
-        return raw_uncertainty - updated_ema, updated_ema
+        return centered, updated_ema
 
     @staticmethod
     def compute_adaptive_temperature(
@@ -379,16 +442,23 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
         reward_dispersion: float,
         abs_skew: float,
         policy_entropy: float,
+        entropy_ref: float,
+        vote_entropy: float,
         step_kl: float,
         alpha_var: float,
         gamma_stepkl: float,
+        delta_probe_entropy: float,
         zeta_skew: float,
-        entropy_scale: float,
+        entropy_h_min: float,
+        entropy_h_max: float,
         entropy_floor: float,
     ) -> float:
         denom = 1.0 + alpha_var * reward_dispersion + gamma_stepkl * step_kl + zeta_skew * abs_skew
-        entropy_bonus = max(policy_entropy, entropy_floor) * entropy_scale
-        eps = eps_base * (1.0 + entropy_bonus) / denom
+        entropy_ratio = max(policy_entropy, entropy_floor) / (max(entropy_ref, entropy_floor) + entropy_floor)
+        entropy_controller = float(
+            torch.clamp(torch.tensor(entropy_ratio), min=entropy_h_min, max=entropy_h_max).item()
+        )
+        eps = eps_base * entropy_controller * (1.0 + delta_probe_entropy * vote_entropy) / denom
         return float(torch.clamp(torch.tensor(eps), min=eps_min, max=eps_max).item())
 
     def _log_prompt_debug(self, prefix: str, rewards: torch.Tensor, decoded_responses: list[str]) -> None:
@@ -440,12 +510,13 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
         reward_meter = AverageMeter()
         self.callback_handler.on_train_begin(self.args, self.state, self.control)
 
+        controller_cfg = self.agpo_runtime_config.get('controller', {})
+        ema_alpha = float(controller_cfg.get('ema_alpha', 0.1))
+
         for step in tqdm(range(max_steps), disable=not self.is_local_process_zero()):
-            self._sync_old_policy()
-            self.model.train()
             self.optimizer.zero_grad()
 
-            accumulated_loss = 0.0
+            rollouts: list[dict[str, Any]] = []
             accumulated_stats: list[dict[str, float]] = []
             accumulated_rewards: list[float] = []
 
@@ -456,21 +527,46 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
                     dataiter = iter(self.dataloader)
                     batch = next(dataiter)
 
-                loss, stats, rewards = self._agpo_step(batch)
-                loss = loss / self.args.gradient_accumulation_steps
-                accumulated_loss += float(loss.detach().cpu())
+                batch_rollouts, stats, rewards = self._collect_agpo_rollouts(batch)
+                rollouts.extend(batch_rollouts)
                 accumulated_stats.append(stats)
                 accumulated_rewards.extend(rewards)
-                self.accelerator.backward(loss)
 
-            self.accelerator.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
-            self.optimizer.step()
-            self.lr_scheduler.step()
-            self.optimizer.zero_grad()
+            update_stats_per_epoch: list[dict[str, float]] = []
+            accumulated_loss = 0.0
+            if rollouts:
+                for _ in range(self.finetuning_args.agpo_update_epochs):
+                    self.model.train()
+                    self.optimizer.zero_grad()
+                    epoch_loss = 0.0
+                    epoch_stats: list[dict[str, float]] = []
+
+                    for rollout in rollouts:
+                        loss, stats = self._agpo_loss_from_rollout(rollout)
+                        scaled_loss = loss / len(rollouts)
+                        epoch_loss += float(scaled_loss.detach().cpu())
+                        epoch_stats.append(stats)
+                        self.accelerator.backward(scaled_loss)
+
+                    self.accelerator.clip_grad_norm_(self.model.parameters(), self.args.max_grad_norm)
+                    self.optimizer.step()
+                    self.lr_scheduler.step()
+                    self.optimizer.zero_grad()
+                    accumulated_loss = epoch_loss
+                    update_stats_per_epoch.append(self._aggregate_stats(epoch_stats))
+
+                step_kl = self._estimate_step_kl(rollouts)
+                self.step_kl_ema = ema_alpha * step_kl + (1.0 - ema_alpha) * self.step_kl_ema
+            else:
+                step_kl = 0.0
 
             aggregated_stats = self._aggregate_stats(accumulated_stats)
+            if update_stats_per_epoch:
+                aggregated_stats.update(self._aggregate_stats(update_stats_per_epoch))
             aggregated_stats['agpo/learning_rate'] = self.lr_scheduler.get_last_lr()[0]
             aggregated_stats['agpo/loss/policy'] = accumulated_loss
+            aggregated_stats['agpo/step_kl'] = step_kl
+            aggregated_stats['agpo/step_kl_ema'] = self.step_kl_ema
             reward_mean = sum(accumulated_rewards) / len(accumulated_rewards) if accumulated_rewards else 0.0
             aggregated_stats['agpo/reward/mean'] = reward_mean
             aggregated_stats['agpo/controller/uncertainty_ema'] = self.uncertainty_ema
@@ -491,10 +587,12 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
                     uncertainty_ema=round(self.uncertainty_ema, 4),
                     step_kl_ema=round(self.step_kl_ema, 4),
                 )
+                for key, value in aggregated_stats.items():
+                    if key.startswith('agpo/') and isinstance(value, (int, float)):
+                        logs[key] = float(value)
+
                 tqdm.write(str(logs))
-                logs['step'] = step
-                self.state.log_history.append(logs)
-                self.callback_handler.on_log(self.args, self.state, self.control, logs)
+                Trainer.log(self, logs)
                 loss_meter.reset()
                 reward_meter.reset()
 
@@ -507,13 +605,20 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
 
         self.callback_handler.on_train_end(self.args, self.state, self.control)
 
-    def _agpo_step(self, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, dict[str, float], list[float]]:
+    def _collect_agpo_rollouts(
+        self, batch: dict[str, torch.Tensor]
+    ) -> tuple[list[dict[str, Any]], dict[str, float], list[float]]:
         self.model.eval()
         self.tokenizer.padding_side = 'right'
 
         controller_cfg = self.agpo_runtime_config.get('controller', {})
         ema_alpha = float(controller_cfg.get('ema_alpha', 0.1))
-        entropy_scale = float(controller_cfg.get('entropy_scale', 0.1))
+        uncertainty_floor = float(controller_cfg.get('uncertainty_floor', 1e-8))
+        entropy_ref_alpha = float(controller_cfg.get('entropy_ref_ema_alpha', 0.01))
+        entropy_h_min = float(controller_cfg.get('entropy_h_min', 0.5))
+        entropy_h_max = float(controller_cfg.get('entropy_h_max', 1.5))
+        skew_sigma_min = float(controller_cfg.get('skew_sigma_min', 1e-6))
+        skew_kappa_max = float(controller_cfg.get('skew_kappa_max', 10.0))
 
         input_ids: torch.Tensor = batch['input_ids'].to(self.current_device)
         attention_mask: torch.Tensor = batch['attention_mask'].to(self.current_device)
@@ -523,7 +628,7 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
             prompts.append(input_ids[i, start_index:].detach().cpu())
 
         stats_per_prompt: list[dict[str, float]] = []
-        losses: list[torch.Tensor] = []
+        rollouts: list[dict[str, Any]] = []
         reward_collection: list[float] = []
 
         for prompt_index, prompt in enumerate(prompts):
@@ -537,13 +642,19 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
 
             dispersion = self._dispersion(probe_rewards_tensor, self.finetuning_args.agpo_use_robust_dispersion).item()
             vote_entropy = self._vote_entropy(probe_texts)
-            skew = self._skewness(probe_rewards_tensor) if self.finetuning_args.agpo_w_k > 0 and probe_rewards_tensor.numel() > 0 else 0.0
+            skew = (
+                self._skewness(probe_rewards_tensor, skew_sigma_min, skew_kappa_max)
+                if probe_rewards_tensor.numel() > 0
+                else 0.0
+            )
             raw_uncertainty = (
                 self.finetuning_args.agpo_w_r * dispersion
                 + self.finetuning_args.agpo_w_e * vote_entropy
                 + self.finetuning_args.agpo_w_k * abs(skew)
             )
-            centered_uncertainty, self.uncertainty_ema = self.compute_centered_uncertainty(raw_uncertainty, self.uncertainty_ema, ema_alpha)
+            centered_uncertainty, self.uncertainty_ema = self.compute_centered_uncertainty(
+                raw_uncertainty, self.uncertainty_ema, ema_alpha, uncertainty_floor
+            )
             tau_t = self.compute_adaptive_temperature(
                 tau_base=self.finetuning_args.agpo_tau_base,
                 lambda_temp=self.finetuning_args.agpo_lambda_temp,
@@ -562,66 +673,78 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
             self._log_prompt_debug('train', train_rewards_tensor, train_texts)
 
             reward_mean = train_rewards_tensor.mean()
-            reward_dispersion = self._dispersion(train_rewards_tensor, self.finetuning_args.agpo_use_robust_dispersion)
+            reward_dispersion = self._dispersion(
+                train_rewards_tensor, self.finetuning_args.agpo_use_robust_dispersion, fallback_to_std=True
+            )
             reward_dispersion = torch.clamp(reward_dispersion, min=1e-8)
             advantages = ((train_rewards_tensor - reward_mean) / reward_dispersion).to(self.current_device)
 
             input_ids_full, attention_mask_full, response_mask = self._build_sequence_batch(prompt, train_responses)
-            logp_old, _, _, _ = self._sequence_logprobs(self.old_policy, input_ids_full, attention_mask_full, response_mask, requires_grad=False)
-            logp_new, token_logprobs_new, mask, policy_entropy = self._sequence_logprobs(self.model, input_ids_full, attention_mask_full, response_mask, requires_grad=True)
-
-            step_kl = torch.clamp((logp_old - logp_new.detach()).mean(), min=0.0).item()
-            _, self.step_kl_ema = self.compute_centered_uncertainty(step_kl, self.step_kl_ema, ema_alpha)
+            old_token_logprobs, mask, old_policy_entropy = self._sequence_logprobs(
+                self.model, input_ids_full, attention_mask_full, response_mask, requires_grad=False
+            )
+            old_policy_entropy_value = float(old_policy_entropy.detach().cpu().item())
+            entropy_ref = self.entropy_ref_ema if self.entropy_ref_ema > self.clip_entropy_floor else old_policy_entropy_value
             eps_adapt = self.compute_adaptive_clip(
                 eps_base=self.finetuning_args.agpo_eps_base,
                 eps_min=self.finetuning_args.agpo_eps_min,
                 eps_max=self.finetuning_args.agpo_eps_max,
-                reward_dispersion=reward_dispersion.item(),
+                reward_dispersion=dispersion,
                 abs_skew=abs(skew),
-                policy_entropy=float(policy_entropy.detach().cpu().item()),
+                policy_entropy=old_policy_entropy_value,
+                entropy_ref=entropy_ref,
+                vote_entropy=vote_entropy,
                 step_kl=self.step_kl_ema,
                 alpha_var=self.finetuning_args.agpo_alpha_var,
                 gamma_stepkl=self.finetuning_args.agpo_gamma_stepkl,
+                delta_probe_entropy=self.finetuning_args.agpo_delta_probe_entropy,
                 zeta_skew=self.finetuning_args.agpo_zeta_skew,
-                entropy_scale=entropy_scale,
+                entropy_h_min=entropy_h_min,
+                entropy_h_max=entropy_h_max,
                 entropy_floor=self.clip_entropy_floor,
             )
+            self.entropy_ref_ema = (
+                old_policy_entropy_value
+                if self.entropy_ref_ema <= self.clip_entropy_floor
+                else entropy_ref_alpha * old_policy_entropy_value + (1.0 - entropy_ref_alpha) * self.entropy_ref_ema
+            )
 
-            ratios = torch.exp(logp_new - logp_old.detach())
-            clipped = torch.clamp(ratios, 1 - eps_adapt, 1 + eps_adapt)
-            surrogate = torch.minimum(ratios * advantages, clipped * advantages)
-            policy_loss = -surrogate.mean()
-            kl_ref = self._compute_ref_kl(input_ids_full, attention_mask_full, mask, token_logprobs_new)
-            loss = policy_loss + self.beta_ref_kl * kl_ref
-            losses.append(loss)
+            rollouts.append(
+                {
+                    'input_ids': input_ids_full.detach(),
+                    'attention_mask': attention_mask_full.detach(),
+                    'response_mask': response_mask.detach(),
+                    'old_token_logprobs': old_token_logprobs.detach(),
+                    'mask': mask.detach(),
+                    'advantages': advantages.detach(),
+                    'eps_adapt': eps_adapt,
+                }
+            )
 
-            clip_sat = ((ratios <= 1 - eps_adapt) | (ratios >= 1 + eps_adapt)).float().mean().item()
             logger.debug(
-                'Prompt idx=%d stats: raw_uncertainty=%.6f centered_uncertainty=%.6f tau=%.6f reward_mean=%.6f reward_dispersion=%.6f skew=%.6f policy_entropy=%.6f step_kl=%.6f step_kl_ema=%.6f eps=%.6f clip_sat=%.6f',
+                'Prompt idx=%d collected: raw_uncertainty=%.6f centered_uncertainty=%.6f tau=%.6f reward_mean=%.6f train_dispersion=%.6f probe_dispersion=%.6f skew=%.6f policy_entropy=%.6f step_kl_ema=%.6f eps=%.6f',
                 prompt_index,
                 raw_uncertainty,
                 centered_uncertainty,
                 tau_t,
                 reward_mean.item(),
                 reward_dispersion.item(),
+                dispersion,
                 skew,
-                float(policy_entropy.detach().cpu().item()),
-                step_kl,
+                old_policy_entropy_value,
                 self.step_kl_ema,
                 eps_adapt,
-                clip_sat,
             )
 
             stats = {
                 'agpo/tau': tau_t,
                 'agpo/sigma': reward_dispersion.item(),
-                'agpo/step_kl': step_kl,
+                'agpo/controller_sigma': dispersion,
                 'agpo/step_kl_ema': self.step_kl_ema,
                 'agpo/eps': eps_adapt,
-                'agpo/kl_ref': float(kl_ref.detach().cpu().item()),
-                'agpo/clip_saturation': clip_sat,
                 'agpo/vote_entropy': vote_entropy,
-                'agpo/policy_entropy': float(policy_entropy.detach().cpu().item()),
+                'agpo/policy_entropy': old_policy_entropy_value,
+                'agpo/entropy_ref': entropy_ref,
                 'agpo/reward/mean_group': reward_mean.item(),
                 'agpo/uncertainty/raw': raw_uncertainty,
                 'agpo/uncertainty/centered': centered_uncertainty,
@@ -634,11 +757,62 @@ class CustomAGPOTrainer(PPOTrainer, Trainer):
                 stats['agpo/probe_tokens'] = float(probe_token_count)
             stats_per_prompt.append(stats)
 
-        loss_total = torch.stack(losses).mean() if losses else torch.zeros((), device=self.current_device)
-
         self.model.train()
         self.tokenizer.padding_side = 'left'
-        return loss_total, self._aggregate_stats(stats_per_prompt), reward_collection
+        return rollouts, self._aggregate_stats(stats_per_prompt), reward_collection
+
+    def _agpo_loss_from_rollout(self, rollout: dict[str, Any]) -> tuple[torch.Tensor, dict[str, float]]:
+        token_logprobs_new, mask, policy_entropy = self._sequence_logprobs(
+            self.model,
+            rollout['input_ids'],
+            rollout['attention_mask'],
+            rollout['response_mask'],
+            requires_grad=True,
+        )
+        old_token_logprobs = rollout['old_token_logprobs'].to(token_logprobs_new.device)
+        advantages = rollout['advantages'].to(token_logprobs_new.device).unsqueeze(-1)
+        eps_adapt = float(rollout['eps_adapt'])
+
+        ratios = torch.exp(token_logprobs_new - old_token_logprobs)
+        clipped = torch.clamp(ratios, 1.0 - eps_adapt, 1.0 + eps_adapt)
+        surrogate = torch.minimum(ratios * advantages, clipped * advantages)
+        token_counts = mask.sum(dim=-1).clamp_min(1.0)
+        policy_loss = -((surrogate * mask).sum(dim=-1) / token_counts).mean()
+        kl_ref = self._compute_ref_kl(rollout['input_ids'], rollout['attention_mask'], mask, token_logprobs_new)
+        loss = policy_loss + self.beta_ref_kl * kl_ref
+
+        clip_hits = ((ratios <= 1.0 - eps_adapt) | (ratios >= 1.0 + eps_adapt)).float() * mask
+        clip_sat = (clip_hits.sum() / mask.sum().clamp_min(1.0)).item()
+        approx_step_kl = ((old_token_logprobs - token_logprobs_new.detach()) * mask).sum() / mask.sum().clamp_min(1.0)
+        stats = {
+            'agpo/loss/surrogate': float(policy_loss.detach().cpu().item()),
+            'agpo/kl_ref': float(kl_ref.detach().cpu().item()),
+            'agpo/clip_saturation': float(clip_sat),
+            'agpo/policy_entropy_update': float(policy_entropy.detach().cpu().item()),
+            'agpo/step_kl_raw_update': float(torch.clamp(approx_step_kl, min=0.0).detach().cpu().item()),
+        }
+        return loss, stats
+
+    @torch.no_grad()
+    def _estimate_step_kl(self, rollouts: list[dict[str, Any]]) -> float:
+        self.model.eval()
+        kl_values = []
+        for rollout in rollouts:
+            token_logprobs_new, mask, _ = self._sequence_logprobs(
+                self.model,
+                rollout['input_ids'],
+                rollout['attention_mask'],
+                rollout['response_mask'],
+                requires_grad=False,
+            )
+            old_token_logprobs = rollout['old_token_logprobs'].to(token_logprobs_new.device)
+            step_kl = ((old_token_logprobs - token_logprobs_new) * mask).sum() / mask.sum().clamp_min(1.0)
+            kl_values.append(torch.clamp(step_kl, min=0.0))
+
+        if not kl_values:
+            return 0.0
+
+        return float(torch.stack(kl_values).mean().detach().cpu().item())
 
     @override
     def create_optimizer(

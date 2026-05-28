@@ -1,0 +1,22 @@
+# Local models, training outputs, and experiment trackers
+models/
+saves/
+wandb/
+
+# Downloaded paper datasets
+data/agieval/
+data/cmath/
+data/code_contests/
+data/gsm8k/
+data/math/
+data/mmlu_raw/
+data/mmlu_stem/
+data/ocw_courses/
+
+# Python/build caches
+__pycache__/
+*.py[cod]
+src/llamafactory.egg-info/
+
+# Logs
+*.log

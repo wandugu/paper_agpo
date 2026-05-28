@@ -228,6 +228,10 @@ class RLHFArguments:
         default=8,
         metadata={"help": "Number of sampled responses per prompt group in AGPO."},
     )
+    agpo_update_epochs: int = field(
+        default=4,
+        metadata={"help": "Number of optimization epochs to run on each AGPO training rollout batch."},
+    )
     agpo_eps_base: float = field(
         default=0.2,
         metadata={"help": "Base clipping epsilon for AGPO."},
@@ -247,6 +251,10 @@ class RLHFArguments:
     agpo_gamma_stepkl: float = field(
         default=0.5,
         metadata={"help": "Step KL coefficient for adaptive epsilon."},
+    )
+    agpo_delta_probe_entropy: float = field(
+        default=0.1,
+        metadata={"help": "Probe vote-entropy coefficient for widening AGPO adaptive epsilon."},
     )
     agpo_zeta_skew: float = field(
         default=0.0,
@@ -609,6 +617,7 @@ class FinetuningArguments(
         assert self.finetuning_type in ["lora", "oft", "freeze", "full"], "Invalid fine-tuning method."
         assert self.ref_model_quantization_bit in [None, 8, 4], "We only accept 4-bit or 8-bit quantization."
         assert self.reward_model_quantization_bit in [None, 8, 4], "We only accept 4-bit or 8-bit quantization."
+        assert self.agpo_update_epochs >= 1, "`agpo_update_epochs` must be greater than or equal to 1."
 
         if self.stage == "ppo" and self.reward_model is None:
             raise ValueError("`reward_model` is necessary for PPO training.")
