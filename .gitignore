@@ -7,11 +7,13 @@ wandb/
 data/agieval/
 data/cmath/
 data/code_contests/
+data/code_contests_python3/
 data/gsm8k/
 data/math/
 data/mmlu_raw/
 data/mmlu_stem/
 data/ocw_courses/
+data/mixed_agpo/
 
 # Python/build caches
 __pycache__/

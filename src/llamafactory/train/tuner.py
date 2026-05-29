@@ -28,6 +28,7 @@ from ..model import load_model, load_tokenizer
 from .callbacks import LogCallback, PissaConvertCallback, ReporterCallback
 from .agpo import run_agpo
 from .ppo import run_ppo
+from .sft import run_sft
 from .trainer_utils import get_ray_trainer, get_swanlab_callback
 
 
@@ -60,7 +61,9 @@ def _training_function(config: dict[str, Any]) -> None:
 
     callbacks.append(ReporterCallback(model_args, data_args, finetuning_args, generating_args))  # add to last
 
-    if finetuning_args.stage == "ppo":
+    if finetuning_args.stage == "sft":
+        run_sft(model_args, data_args, training_args, finetuning_args, generating_args, callbacks)
+    elif finetuning_args.stage == "ppo":
         if finetuning_args.rl_algo == "agpo":
             run_agpo(model_args, data_args, training_args, finetuning_args, generating_args, callbacks)
         else:

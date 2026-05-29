@@ -1,9 +1,16 @@
 ### model
 model_name_or_path: models/Qwen3-0.6B
-reward_model: http://127.0.0.1:8008
+adapter_name_or_path: saves/qwen3-0.6b/lora/code_contests_py3_sft
+reward_model: http://127.0.0.1:8010
 reward_model_type: api
-reward_data: data/gsm8k/rl_train.json
+reward_data: data/code_contests/hf_dataset
 trust_remote_code: true
+
+### code reward server
+code_reward_test_suites: public,generated
+code_reward_max_tests: 8
+code_reward_timeout: 2.0
+code_reward_language: python
 
 ### method
 stage: ppo
@@ -27,34 +34,34 @@ agpo_beta_ref_kl: 0.03
 agpo_use_robust_dispersion: std
 
 ### dataset
-dataset: gsm8k_rl_train
+dataset: code_contests_py3_rl_train
 template: qwen3
-cutoff_len: 1024
-max_samples: 200
+cutoff_len: 4096
+max_samples: 1000
 overwrite_cache: true
 preprocessing_num_workers: 4
 dataloader_num_workers: 0
 
 ### output
-output_dir: saves/qwen3-0.6b/lora/gsm8k_agpo
+output_dir: saves/qwen3-0.6b/lora/code_contests_py3_agpo
 logging_steps: 1
-save_steps: 10
+save_steps: 20
 plot_loss: true
 overwrite_output_dir: true
 report_to: wandb
-run_name: qwen3-0.6b-gsm8k-agpo-direct
+run_name: qwen3-0.6b-code-contests-py3-agpo
 
 ### train
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 1
-learning_rate: 1.0e-5
-max_steps: 10
+learning_rate: 5.0e-6
+max_steps: 100
 lr_scheduler_type: cosine
-warmup_ratio: 0.1
+warmup_ratio: 0.05
 bf16: true
 ddp_timeout: 180000000
 
 ### generate
-max_new_tokens: 256
+max_new_tokens: 1024
 top_k: 0
 top_p: 0.9

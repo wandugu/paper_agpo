@@ -770,5 +770,317 @@
       "prompt": "content"
     },
     "folder": "python"
+  },
+  "mixed_agpo_gsm8k_train": {
+    "file_name": "mixed_agpo/gsm8k/train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_gsm8k_validation": {
+    "file_name": "mixed_agpo/gsm8k/validation.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_gsm8k_test": {
+    "file_name": "mixed_agpo/gsm8k/test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_math_train": {
+    "file_name": "mixed_agpo/math/train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_math_validation": {
+    "file_name": "mixed_agpo/math/validation.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_math_test": {
+    "file_name": "mixed_agpo/math/test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mmlu_stem_train": {
+    "file_name": "mixed_agpo/mmlu_stem/train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mmlu_stem_validation": {
+    "file_name": "mixed_agpo/mmlu_stem/validation.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mmlu_stem_test": {
+    "file_name": "mixed_agpo/mmlu_stem/test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_cmath_train": {
+    "file_name": "mixed_agpo/cmath/train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_cmath_validation": {
+    "file_name": "mixed_agpo/cmath/validation.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_cmath_test": {
+    "file_name": "mixed_agpo/cmath/test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_sat_math_train": {
+    "file_name": "mixed_agpo/sat_math/train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_sat_math_validation": {
+    "file_name": "mixed_agpo/sat_math/validation.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_sat_math_test": {
+    "file_name": "mixed_agpo/sat_math/test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_gaokao_mathqa_train": {
+    "file_name": "mixed_agpo/gaokao_mathqa/train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_gaokao_mathqa_validation": {
+    "file_name": "mixed_agpo/gaokao_mathqa/validation.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_gaokao_mathqa_test": {
+    "file_name": "mixed_agpo/gaokao_mathqa/test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_gaokao_mathcloze_train": {
+    "file_name": "mixed_agpo/gaokao_mathcloze/train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_gaokao_mathcloze_validation": {
+    "file_name": "mixed_agpo/gaokao_mathcloze/validation.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_gaokao_mathcloze_test": {
+    "file_name": "mixed_agpo/gaokao_mathcloze/test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_ocw_courses_train": {
+    "file_name": "mixed_agpo/ocw_courses/train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_ocw_courses_validation": {
+    "file_name": "mixed_agpo/ocw_courses/validation.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_ocw_courses_test": {
+    "file_name": "mixed_agpo/ocw_courses/test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_code_contests_train": {
+    "file_name": "mixed_agpo/code_contests/train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_code_contests_validation": {
+    "file_name": "mixed_agpo/code_contests/validation.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_code_contests_test": {
+    "file_name": "mixed_agpo/code_contests/test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_all_train": {
+    "file_name": "mixed_agpo/mixed_all/train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_all_validation": {
+    "file_name": "mixed_agpo/mixed_all/validation.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_all_test": {
+    "file_name": "mixed_agpo/mixed_all/test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_answer_train": {
+    "file_name": "mixed_agpo/mixed_answer/train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_answer_validation": {
+    "file_name": "mixed_agpo/mixed_answer/validation.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_answer_test": {
+    "file_name": "mixed_agpo/mixed_answer/test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_py3_sft_train": {
+    "file_name": "code_contests_python3/sft_train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_py3_sft_valid": {
+    "file_name": "code_contests_python3/sft_valid.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_py3_sft_test": {
+    "file_name": "code_contests_python3/sft_test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_py3_rl_train": {
+    "file_name": "code_contests_python3/rl_train.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_py3_rl_valid": {
+    "file_name": "code_contests_python3/rl_valid.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "code_contests_py3_rl_test": {
+    "file_name": "code_contests_python3/rl_test.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
   }
 }

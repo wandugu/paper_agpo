@@ -320,6 +320,26 @@ class RLHFArguments:
         default=None,
         metadata={"help": "Path to the reward model used for the PPO training."},
     )
+    reward_data: Optional[str] = field(
+        default=None,
+        metadata={"help": "Path to the data file used by an API reward server launcher."},
+    )
+    code_reward_test_suites: str = field(
+        default="public,generated",
+        metadata={"help": "Comma-separated CodeContests test suites used by the API reward server launcher."},
+    )
+    code_reward_max_tests: int = field(
+        default=8,
+        metadata={"help": "Maximum CodeContests tests per problem used by the API reward server launcher."},
+    )
+    code_reward_timeout: float = field(
+        default=2.0,
+        metadata={"help": "Timeout in seconds for each CodeContests execution in the API reward server launcher."},
+    )
+    code_reward_language: Literal["auto", "python", "cpp"] = field(
+        default="python",
+        metadata={"help": "Language mode used by the CodeContests API reward server launcher."},
+    )
     reward_model_adapters: Optional[str] = field(
         default=None,
         metadata={"help": "Path to the adapters of the reward model."},

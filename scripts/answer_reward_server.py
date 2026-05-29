@@ -15,6 +15,10 @@ USER_BLOCK_RE = re.compile(r"<\|im_start\|>user\n(.*?)<\|im_end\|>", re.DOTALL)
 ASSISTANT_BLOCK_RE = re.compile(r"<\|im_start\|>assistant\n?(.*)", re.DOTALL)
 BOXED_RE = re.compile(r"\\boxed\{([^{}]+)\}")
 NUMBER_RE = re.compile(r"[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
+LETTER_RE = re.compile(
+    r"(?:answer\s*(?:is|:)|choice\s*(?:is|:)|option\s*(?:is|:)|therefore|so)?\s*[\(\[]?([A-E])[\)\].]?",
+    re.IGNORECASE,
+)
 
 
 class RewardRequest(BaseModel):
@@ -22,11 +26,30 @@ class RewardRequest(BaseModel):
     messages: list[str]
 
 
-class GSM8KScorer:
+class AnswerScorer:
     def __init__(self, data_path: Path) -> None:
-        rows = json.loads(data_path.read_text(encoding="utf-8"))
-        self.answers = {self._norm_question(row["instruction"]): str(row["answer"]) for row in rows}
+        rows = self._load_rows(data_path)
+        self.answers = {
+            self._norm_question(row["instruction"]): str(answer)
+            for row in rows
+            if (answer := row.get("answer") or row.get("final_answer")) not in (None, "")
+        }
         self.fallback_items = list(self.answers.items())
+
+    @staticmethod
+    def _load_rows(data_path: Path) -> list[dict[str, Any]]:
+        if data_path.suffix == ".jsonl":
+            rows = []
+            with data_path.open("r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip():
+                        rows.append(json.loads(line))
+            return rows
+
+        rows = json.loads(data_path.read_text(encoding="utf-8"))
+        if not isinstance(rows, list):
+            raise ValueError(f"Expected a list of examples in {data_path}")
+        return rows
 
     @staticmethod
     def _norm_question(text: str) -> str:
@@ -35,6 +58,9 @@ class GSM8KScorer:
     @staticmethod
     def _norm_answer(text: str) -> str:
         text = text.strip()
+        if re.fullmatch(r"[A-Ea-e]", text):
+            return text.upper()
+
         text = text.replace(",", "")
         text = text.replace("$", "")
         text = text.rstrip(".")
@@ -67,6 +93,10 @@ class GSM8KScorer:
         return response
 
     def _extract_answer(self, response: str) -> str | None:
+        letter_matches = LETTER_RE.findall(response)
+        if letter_matches:
+            return self._norm_answer(letter_matches[-1])
+
         if "####" in response:
             tail = response.rsplit("####", 1)[-1]
             match = NUMBER_RE.search(tail)
@@ -98,12 +128,12 @@ class GSM8KScorer:
 
 
 def create_app(data_path: Path) -> FastAPI:
-    scorer = GSM8KScorer(data_path)
-    app = FastAPI(title="GSM8K reward server")
+    scorer = AnswerScorer(data_path)
+    app = FastAPI(title="Answer reward server")
 
     @app.get("/health")
     def health() -> dict[str, Any]:
-        return {"status": "ok", "examples": len(scorer.answers)}
+        return {"status": "ok", "examples": len(scorer.answers), "data": str(data_path)}
 
     @app.post("/")
     def reward(payload: RewardRequest) -> dict[str, list[float]]:
@@ -112,7 +142,7 @@ def create_app(data_path: Path) -> FastAPI:
     return app
 
 
-default_data_path = Path(os.environ.get("GSM8K_REWARD_DATA", "data/gsm8k/rl_train.json"))
+default_data_path = Path(os.environ.get("ANSWER_REWARD_DATA", "data/gsm8k/rl_train.json"))
 app = create_app(default_data_path)
 
 

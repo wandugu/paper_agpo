@@ -1,8 +1,8 @@
 ### model
 model_name_or_path: models/Qwen3-0.6B
-reward_model: http://127.0.0.1:8008
+reward_model: http://127.0.0.1:8030
 reward_model_type: api
-reward_data: data/gsm8k/rl_train.json
+reward_data: data/mixed_agpo/mixed_answer/train.jsonl
 trust_remote_code: true
 
 ### method
@@ -27,34 +27,34 @@ agpo_beta_ref_kl: 0.03
 agpo_use_robust_dispersion: std
 
 ### dataset
-dataset: gsm8k_rl_train
+dataset: mixed_agpo_mixed_answer_train
 template: qwen3
-cutoff_len: 1024
-max_samples: 200
+cutoff_len: 4096
+max_samples: 5000
 overwrite_cache: true
 preprocessing_num_workers: 4
 dataloader_num_workers: 0
 
 ### output
-output_dir: saves/qwen3-0.6b/lora/gsm8k_agpo
+output_dir: saves/qwen3-0.6b/lora/mixed_answer_agpo_1000
 logging_steps: 1
-save_steps: 10
+save_steps: 100
 plot_loss: true
 overwrite_output_dir: true
 report_to: wandb
-run_name: qwen3-0.6b-gsm8k-agpo-direct
+run_name: qwen3-0.6b-mixed-answer-agpo-1000
 
 ### train
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 1
-learning_rate: 1.0e-5
-max_steps: 10
+learning_rate: 3.0e-6
+max_steps: 1000
 lr_scheduler_type: cosine
-warmup_ratio: 0.1
+warmup_ratio: 0.05
 bf16: true
 ddp_timeout: 180000000
 
 ### generate
-max_new_tokens: 256
+max_new_tokens: 1024
 top_k: 0
 top_p: 0.9
