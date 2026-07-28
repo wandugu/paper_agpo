@@ -7,9 +7,11 @@ controller:
   entropy_ref_ema_alpha: 0.01
   entropy_h_min: 0.5
   entropy_h_max: 1.5
+  advantage_floor: 1.0e-8
   clip_entropy_floor: 1.0e-8
   skew_sigma_min: 1.0e-6
   skew_kappa_max: 10.0
 logging:
   debug_reward_samples: true
   max_debug_reward_items: 3
+  controller_trace_jsonl: true

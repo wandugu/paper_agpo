@@ -144,14 +144,18 @@ def create_ref_model(
 
 
 def create_reward_model(
-    model: "AutoModelForCausalLMWithValueHead", model_args: "ModelArguments", finetuning_args: "FinetuningArguments"
+    model: Union["PreTrainedModel", "AutoModelForCausalLMWithValueHead"],
+    model_args: "ModelArguments",
+    finetuning_args: "FinetuningArguments",
 ) -> Optional["AutoModelForCausalLMWithValueHead"]:
     r"""Create reward model for PPO training."""
     if finetuning_args.reward_model_type == "api":
         assert finetuning_args.reward_model.startswith("http"), "Please provide full url."
         logger.info_rank0(f"Use reward server {finetuning_args.reward_model}")
         return finetuning_args.reward_model
-    elif finetuning_args.reward_model_type == "lora":
+    elif finetuning_args.reward_model_type in ["lora", "oft"]:
+        if not hasattr(model, "pretrained_model") or not hasattr(model, "v_head"):
+            raise ValueError("Local reward adapters require a policy wrapper with a reward head.")
         model.pretrained_model.load_adapter(finetuning_args.reward_model, "reward")
         for name, param in model.named_parameters():  # https://github.com/huggingface/peft/issues/1090
             if "default" in name:

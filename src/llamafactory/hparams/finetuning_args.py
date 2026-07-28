@@ -300,6 +300,15 @@ class RLHFArguments:
         default=True,
         metadata={"help": "Count probe tokens in the total token budget for AGPO."},
     )
+    agpo_max_generated_tokens: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Optional global generated-continuation-token budget for AGPO. "
+                "The trainer caps the final group and never overshoots this value."
+            )
+        },
+    )
     agpo_log_probe_metrics: bool = field(
         default=True,
         metadata={"help": "Log probe stage statistics in AGPO."},
@@ -637,7 +646,11 @@ class FinetuningArguments(
         assert self.finetuning_type in ["lora", "oft", "freeze", "full"], "Invalid fine-tuning method."
         assert self.ref_model_quantization_bit in [None, 8, 4], "We only accept 4-bit or 8-bit quantization."
         assert self.reward_model_quantization_bit in [None, 8, 4], "We only accept 4-bit or 8-bit quantization."
+        assert self.agpo_group_size >= 2, "`agpo_group_size` must be greater than or equal to 2."
         assert self.agpo_update_epochs >= 1, "`agpo_update_epochs` must be greater than or equal to 1."
+        assert self.agpo_max_generated_tokens is None or self.agpo_max_generated_tokens > 0, (
+            "`agpo_max_generated_tokens` must be positive when set."
+        )
 
         if self.stage == "ppo" and self.reward_model is None:
             raise ValueError("`reward_model` is necessary for PPO training.")

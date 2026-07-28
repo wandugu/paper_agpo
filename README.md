@@ -90,22 +90,22 @@ This separation is important:
 
 ## Architecture Overview
 
-- `workflow.py` loads the tokenizer, dataset, policy model with value head, reference model, and reward model, then instantiates `CustomAGPOTrainer` and runs training.
-- `trainer.py` extends `trl.PPOTrainer` with AGPO-specific grouped sampling, reward normalization, adaptive temperature scheduling, adaptive clipping, and logging.
+- `workflow.py` loads a plain causal-LM policy for API/full reward modes, so the critic-free path has no unused value head. A value head is instantiated only when it is actively used by a local LoRA/OFT reward adapter.
+- `trainer.py` owns the grouped rollout and optimization loop directly while reusing Accelerate and Transformers infrastructure. It does not call PPO value prediction or generalized advantage estimation.
 - `tuner.py` dispatches to the AGPO workflow when `stage=ppo` and `rl_algo=agpo`; otherwise it falls back to the standard PPO path.
 
 ## Training Loop
 
 A full AGPO update step follows this sequence:
 
-1. **Sync the old policy**  
-   At the beginning of each gradient step, the current policy is copied so that importance ratios and detached KL drift can be measured against the previous policy snapshot.
+1. **Snapshot rollout log probabilities**
+   During collection, the trainer stores detached token log probabilities from the current policy. These form the old-policy side of the clipped ratio without copying a second trainable policy.
 
 2. **Probe sampling**  
    For each prompt, the trainer samples one probe group at `agpo_tau_base` and computes reward dispersion, vote entropy, and optional skewness.
 
 3. **Adaptive temperature update**  
-   The trainer converts the probe statistics into an uncertainty score, centers it using an EMA baseline, and updates the rollout temperature within the configured bounds.
+   The trainer converts the probe statistics into an uncertainty score and centers it against one frozen minibatch EMA snapshot. The EMA is updated once from the minibatch mean, making controller outputs invariant to prompt ordering for fixed rollout statistics.
 
 4. **Training rollout sampling and advantage normalization**  
    The trainer resamples responses using the adaptive temperature, evaluates rewards, and normalizes grouped rewards into advantages.
@@ -114,7 +114,7 @@ A full AGPO update step follows this sequence:
    The PPO/GRPO clip radius is adjusted using probe reward dispersion, probe vote entropy, policy entropy, skewness, and historical step-wise KL drift, together with the configured controller bounds.
 
 6. **Optimization and logging**  
-   The policy is updated, and metrics such as temperature, dispersion, KL, and rewards are recorded for debugging and visualization.
+   The policy is updated, and metrics such as temperature, saturation, dispersion, KL, rewards, and generated-token counters are recorded. For a configured token budget, the final group is shortened per sequence so the global budget is never overshot.
 
 > Note: the current AGPO trainer does not load a validation dataset directly. If you need evaluation, run a separate inference or benchmark step after training.
 
@@ -129,6 +129,8 @@ rl_algo: agpo
 reward_model: <path-to-reward-model>
 reward_model_type: lora   # or full / api
 agpo_group_size: 8
+agpo_count_probe_tokens_in_budget: true
+agpo_max_generated_tokens: 300000000  # paper protocol; omit for step-limited runs
 ```
 
 3. Launch training:
@@ -154,11 +156,14 @@ If you need distributed or Ray-based training, you can reuse the standard launch
 | `agpo_beta_ref_kl` | 0.03 | Weight of the reference-policy KL regularizer. |
 | `agpo_log_probe_metrics` | True | Whether to log probe-stage statistics for diagnostics. |
 | `agpo_count_probe_tokens_in_budget` | True | Whether probe tokens count toward the rollout token budget. |
+| `agpo_max_generated_tokens` | `None` | Optional global continuation-token budget. The trainer reserves both probe and train groups, caps the final group, and stops without overshoot. |
 
 ## Logging and Visualization
 
 - The trainer periodically records metrics such as `loss`, `reward`, and `learning_rate`.
-- AGPO-specific metrics are logged under names such as `agpo/tau`, `agpo/sigma`, and `agpo/step_kl`.
+- AGPO-specific metrics are logged under names such as `agpo/tau`, `agpo/sigma`, `agpo/step_kl`, `agpo/tau_saturated`, and `agpo/budget/*`.
+- `agpo_token_audit.json` is atomically refreshed in the output directory and records cumulative probe/train tokens, the charged total, remaining budget, world size, and final-group rule.
+- `agpo_controller_trace.rank<N>.jsonl` stores one controller row per completed prompt, keyed by a SHA-256 fingerprint of its token IDs, so temperature/clip correlations and saturation rates can be recomputed without storing prompt text.
 - If `plot_loss: true` is enabled, the workflow can generate training curves after training finishes.
 
 Because AGPO depends heavily on controller dynamics, these logs are especially useful for diagnosing whether the model is over-exploring, collapsing to low-diversity outputs, or drifting too aggressively.
@@ -168,6 +173,7 @@ Because AGPO depends heavily on controller dynamics, these logs are especially u
 - If the reward model is noisy, consider increasing `agpo_w_r` or `agpo_alpha_var` to make the controller more conservative.
 - If you want more response diversity, consider increasing `agpo_w_e` or raising `agpo_tau_max`.
 - If you use an API reward model (`reward_model_type: api`), make sure the serving endpoint matches the format expected by `get_rewards_from_server`.
+- For the paper's token-matched protocol, set both `agpo_count_probe_tokens_in_budget: true` and `agpo_max_generated_tokens: 300000000`, then retain `agpo_token_audit.json` with the run artifacts.
 - AGPO still depends on the usual PPO settings such as learning rate, gradient clipping, precision mode, and rollout budget, so tune them together rather than in isolation.
 
 ## In One Sentence

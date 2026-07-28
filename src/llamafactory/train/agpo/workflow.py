@@ -40,13 +40,21 @@ def run_agpo(
     tokenizer = tokenizer_module["tokenizer"]
     template = get_template_and_fix_tokenizer(tokenizer, data_args)
     dataset_module = get_dataset(template, model_args, data_args, training_args, stage="ppo", **tokenizer_module)
-    model = load_model(tokenizer, model_args, finetuning_args, training_args.do_train, add_valuehead=True)
+    # # CONFLICT-03 RESOLVED: the verifiable/API policy path has no unused value head.
+    uses_local_reward_head = finetuning_args.reward_model_type in ["lora", "oft"]
+    model = load_model(
+        tokenizer,
+        model_args,
+        finetuning_args,
+        training_args.do_train,
+        add_valuehead=uses_local_reward_head,
+    )
 
     tokenizer.padding_side = "left"  # use left-padding in generation while using right-padding in training
     data_collator = MultiModalDataCollatorForSeq2Seq(template=template, model=model, **tokenizer_module)
 
     # Create reference model and reward model
-    ref_model = create_ref_model(model_args, finetuning_args, add_valuehead=True)
+    ref_model = create_ref_model(model_args, finetuning_args, add_valuehead=False)
     reward_model = create_reward_model(model, model_args, finetuning_args)
 
     agpo_trainer = CustomAGPOTrainer(
@@ -66,7 +74,7 @@ def run_agpo(
     if training_args.do_train:
         agpo_trainer.ppo_train(resume_from_checkpoint=training_args.resume_from_checkpoint)
         agpo_trainer.save_model()
-        if training_args.should_save:
+        if training_args.should_save and uses_local_reward_head:
             fix_valuehead_checkpoint(model, training_args.output_dir, training_args.save_safetensors)
 
         agpo_trainer.save_state()  # must be called after save_model to have a folder
