@@ -819,7 +819,7 @@ class CustomAGPOTrainer(Trainer):
         self.control = self.callback_handler.on_train_begin(self.args, self.state, self.control)
 
         controller_cfg = self.agpo_runtime_config.get('controller', {})
-        ema_alpha = float(controller_cfg.get('ema_alpha', 0.1))
+        step_kl_ema_alpha = float(controller_cfg.get('step_kl_ema_alpha', 0.1))
         self._reset_controller_trace()
         self._write_token_audit("train_start")
 
@@ -882,7 +882,10 @@ class CustomAGPOTrainer(Trainer):
                     update_stats_per_epoch.append(self._aggregate_stats(epoch_stats))
 
                 step_kl = self._estimate_step_kl(rollouts)
-                self.step_kl_ema = ema_alpha * step_kl + (1.0 - ema_alpha) * self.step_kl_ema
+                self.step_kl_ema = (
+                    step_kl_ema_alpha * step_kl
+                    + (1.0 - step_kl_ema_alpha) * self.step_kl_ema
+                )
             else:
                 step_kl = 0.0
 
@@ -948,7 +951,7 @@ class CustomAGPOTrainer(Trainer):
         self.processing_class.padding_side = 'right'
 
         controller_cfg = self.agpo_runtime_config.get('controller', {})
-        ema_alpha = float(controller_cfg.get('ema_alpha', 0.1))
+        uncertainty_ema_alpha = float(controller_cfg.get('uncertainty_ema_alpha', 0.01))
         uncertainty_floor = float(controller_cfg.get('uncertainty_floor', 1e-8))
         entropy_ref_alpha = float(controller_cfg.get('entropy_ref_ema_alpha', 0.01))
         entropy_h_min = float(controller_cfg.get('entropy_h_min', 0.5))
@@ -1010,7 +1013,7 @@ class CustomAGPOTrainer(Trainer):
             centered_uncertainty, _ = self.compute_centered_uncertainty(
                 raw_uncertainty,
                 uncertainty_ema_snapshot,
-                ema_alpha,
+                uncertainty_ema_alpha,
                 uncertainty_floor,
             )
             tau_t = self.compute_adaptive_temperature(
@@ -1169,7 +1172,7 @@ class CustomAGPOTrainer(Trainer):
         self.uncertainty_ema = self.update_ema_from_batch(
             raw_uncertainties,
             uncertainty_ema_snapshot,
-            ema_alpha,
+            uncertainty_ema_alpha,
             uncertainty_floor,
         )
         self.entropy_ref_ema = self.update_ema_from_batch(

@@ -54,7 +54,8 @@ def _make_tiny_model():
 
 def test_load_agpo_config():
     config = load_agpo_config()
-    assert config['controller']['ema_alpha'] == 0.1
+    assert config['controller']['uncertainty_ema_alpha'] == 0.01
+    assert config['controller']['step_kl_ema_alpha'] == 0.1
     assert config['controller']['entropy_h_min'] == 0.5
     assert config['controller']['advantage_floor'] == 1e-8
     assert config['logging']['debug_reward_samples'] is True

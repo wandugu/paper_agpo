@@ -1,5 +1,6 @@
 controller:
-  ema_alpha: 0.1
+  uncertainty_ema_alpha: 0.01
+  step_kl_ema_alpha: 0.1
   uncertainty_ema_init: 0.0
   uncertainty_floor: 1.0e-8
   step_kl_ema_init: 0.0
