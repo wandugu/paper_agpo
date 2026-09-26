@@ -1082,5 +1082,69 @@
       "query": "input",
       "response": "output"
     }
+  },
+  "mixed_agpo_mixed_answer_train_letterbalanced": {
+    "file_name": "mixed_agpo/mixed_answer/train_letterbalanced.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_answer_train_letterunique": {
+    "file_name": "mixed_agpo/mixed_answer/train_letterunique.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_answer_train_answer_only_nothink": {
+    "file_name": "mixed_agpo/mixed_answer/train_answer_only_nothink.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_answer_train_finalmarker_nothink": {
+    "file_name": "mixed_agpo/mixed_answer/train_finalmarker_nothink.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_answer_train_repairweak_finalmarker_nothink": {
+    "file_name": "mixed_agpo/mixed_answer/train_repairweak_finalmarker_nothink.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_answer_train_letterstrict_finalmarker_nothink": {
+    "file_name": "mixed_agpo/mixed_answer/train_letterstrict_finalmarker_nothink.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_answer_train_letterdirect_finalmarker_nothink": {
+    "file_name": "mixed_agpo/mixed_answer/train_letterdirect_finalmarker_nothink.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  },
+  "mixed_agpo_mixed_answer_train_sourcebalanced_finalmarker_nothink": {
+    "file_name": "mixed_agpo/mixed_answer/train_sourcebalanced_finalmarker_nothink.jsonl",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
   }
 }

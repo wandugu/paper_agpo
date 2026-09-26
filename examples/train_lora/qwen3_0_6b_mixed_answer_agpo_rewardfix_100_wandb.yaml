@@ -1,6 +1,7 @@
 ### model
 model_name_or_path: models/Qwen3-0.6B
-reward_model: http://127.0.0.1:8030
+adapter_name_or_path: saves/qwen3-0.6b/lora/mixed_answer_agpo_rewardfix_50
+reward_model: http://127.0.0.1:8032
 reward_model_type: api
 reward_data: data/mixed_agpo/mixed_answer/train.jsonl
 trust_remote_code: true
@@ -36,19 +37,19 @@ preprocessing_num_workers: 4
 dataloader_num_workers: 0
 
 ### output
-output_dir: saves/qwen3-0.6b/lora/mixed_answer_agpo_200
+output_dir: saves/qwen3-0.6b/lora/mixed_answer_agpo_rewardfix_100
 logging_steps: 1
-save_steps: 50
+save_steps: 20
 plot_loss: true
 overwrite_output_dir: true
 report_to: wandb
-run_name: qwen3-0.6b-mixed-answer-agpo-200
+run_name: qwen3-0.6b-mixed-answer-agpo-rewardfix-100
 
 ### train
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 1
 learning_rate: 3.0e-6
-max_steps: 200
+max_steps: 100
 lr_scheduler_type: cosine
 warmup_ratio: 0.05
 bf16: true

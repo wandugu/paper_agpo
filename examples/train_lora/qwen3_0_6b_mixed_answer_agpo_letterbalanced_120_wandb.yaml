@@ -1,8 +1,9 @@
 ### model
 model_name_or_path: models/Qwen3-0.6B
-reward_model: http://127.0.0.1:8030
+adapter_name_or_path: saves/qwen3-0.6b/lora/mixed_answer_agpo_strictdense_300
+reward_model: http://127.0.0.1:8040
 reward_model_type: api
-reward_data: data/mixed_agpo/mixed_answer/train.jsonl
+reward_data: data/mixed_agpo/mixed_answer/train_letterbalanced.jsonl
 trust_remote_code: true
 
 ### method
@@ -27,30 +28,30 @@ agpo_beta_ref_kl: 0.03
 agpo_use_robust_dispersion: std
 
 ### dataset
-dataset: mixed_agpo_mixed_answer_train
+dataset: mixed_agpo_mixed_answer_train_letterbalanced
 template: qwen3
 cutoff_len: 4096
-max_samples: 5000
+max_samples: 6000
 overwrite_cache: true
 preprocessing_num_workers: 4
 dataloader_num_workers: 0
 
 ### output
-output_dir: saves/qwen3-0.6b/lora/mixed_answer_agpo_200
+output_dir: saves/qwen3-0.6b/lora/mixed_answer_agpo_letterbalanced_120
 logging_steps: 1
-save_steps: 50
+save_steps: 20
 plot_loss: true
 overwrite_output_dir: true
 report_to: wandb
-run_name: qwen3-0.6b-mixed-answer-agpo-200
+run_name: qwen3-0.6b-mixed-answer-agpo-letterbalanced-120
 
 ### train
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 1
-learning_rate: 3.0e-6
-max_steps: 200
+learning_rate: 2.0e-7
+max_steps: 120
 lr_scheduler_type: cosine
-warmup_ratio: 0.05
+warmup_ratio: 0.0
 bf16: true
 ddp_timeout: 180000000
 

@@ -1,0 +1,42 @@
+### model
+model_name_or_path: models/Qwen3-0.6B
+adapter_name_or_path: saves/qwen3-0.6b/lora/mixed_answer_agpo_strictdense_300
+trust_remote_code: true
+
+### method
+stage: sft
+do_train: true
+finetuning_type: lora
+lora_rank: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target: all
+
+### dataset
+dataset: mixed_agpo_mixed_answer_train_answer_only_nothink
+template: qwen3_nothink
+enable_thinking: false
+cutoff_len: 4096
+max_samples: 1863
+overwrite_cache: true
+preprocessing_num_workers: 4
+dataloader_num_workers: 0
+
+### output
+output_dir: saves/qwen3-0.6b/lora/mixed_answer_nothink_sft_warmup_80
+logging_steps: 1
+save_steps: 20
+plot_loss: true
+overwrite_output_dir: true
+report_to: wandb
+run_name: qwen3-0.6b-mixed-answer-nothink-sft-warmup-80
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 1
+learning_rate: 5.0e-6
+max_steps: 80
+lr_scheduler_type: cosine
+warmup_ratio: 0.05
+bf16: true
+ddp_timeout: 180000000
