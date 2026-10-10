@@ -57,13 +57,15 @@ def _load_single_dataset(
     r"""Load a single dataset and aligns it to the standard format."""
     logger.info_rank0(f"Loading dataset {dataset_attr}...")
     data_path, data_name, data_dir, data_files = None, None, None, None
+    dataset_dir = dataset_attr.dataset_dir or data_args.dataset_dir
+    dataset_name = dataset_attr.dataset_name
     if dataset_attr.load_from in ["hf_hub", "ms_hub", "om_hub"]:
         data_path = dataset_attr.dataset_name
         data_name = dataset_attr.subset
         data_dir = dataset_attr.folder
 
     elif dataset_attr.load_from == "script":
-        data_path = os.path.join(data_args.dataset_dir, dataset_attr.dataset_name)
+        data_path = os.path.join(dataset_dir, dataset_name)
         data_name = dataset_attr.subset
         data_dir = dataset_attr.folder
 
@@ -72,7 +74,7 @@ def _load_single_dataset(
 
     elif dataset_attr.load_from == "file":
         data_files = []
-        local_path = os.path.join(data_args.dataset_dir, dataset_attr.dataset_name)
+        local_path = os.path.join(dataset_dir, dataset_name)
         if os.path.isdir(local_path):  # is directory
             for file_name in os.listdir(local_path):
                 data_files.append(os.path.join(local_path, file_name))

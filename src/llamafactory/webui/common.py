@@ -32,6 +32,7 @@ from ..extras.constants import (
     DownloadSource,
 )
 from ..extras.misc import use_modelscope, use_openmind
+from ..extras.path_utils import expand_env_tree
 
 
 logger = logging.get_logger(__name__)
@@ -145,7 +146,7 @@ def load_dataset_info(dataset_dir: str) -> dict[str, dict[str, Any]]:
 
     try:
         with open(os.path.join(dataset_dir, DATA_CONFIG), encoding="utf-8") as f:
-            return json.load(f)
+            return expand_env_tree(json.load(f))
     except Exception as err:
         logger.warning_rank0(f"Cannot open {os.path.join(dataset_dir, DATA_CONFIG)} due to {str(err)}.")
         return {}

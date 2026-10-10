@@ -1,5 +1,5 @@
 ### model
-model_name_or_path: models/Qwen3-0.6B
+model_name_or_path: ${MODEL_ROOT:-models}/Qwen3-0.6B
 adapter_name_or_path: saves/qwen3-0.6b/lora/mixed_answer_nothink_finalmarker_sft_40/checkpoint-40
 reward_model: http://127.0.0.1:8044
 reward_model_type: api

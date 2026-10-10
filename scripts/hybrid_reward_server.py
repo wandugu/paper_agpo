@@ -9,10 +9,11 @@ from pathlib import Path
 from typing import Any
 
 import uvicorn
+from code_reward_server import CodeContestScorer, ExecutionResult, parse_test_suites
 from fastapi import FastAPI
 from pydantic import BaseModel
+from resource_paths import dataset_path
 
-from code_reward_server import CodeContestScorer, ExecutionResult, parse_test_suites
 
 try:
     import sympy as sp
@@ -844,7 +845,9 @@ def main() -> None:
     parser.add_argument(
         "--code-dataset-dir",
         type=Path,
-        default=Path(os.environ.get("CODE_REWARD_DATA", "data/code_contests/hf_dataset")),
+        default=Path(
+            os.environ.get("CODE_REWARD_DATA", dataset_path("code_contests/hf_dataset", "data/code_contests/hf_dataset"))
+        ),
         help="Hugging Face dataset directory with CodeContests tests.",
     )
     parser.add_argument("--test-suites", default=os.environ.get("CODE_REWARD_TEST_SUITES", "public,generated"))

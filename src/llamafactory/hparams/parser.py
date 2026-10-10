@@ -33,6 +33,7 @@ from ..extras import logging
 from ..extras.constants import CHECKPOINT_NAMES, EngineName
 from ..extras.misc import check_dependencies, check_version, get_current_device, is_env_enabled
 from ..extras.packages import is_transformers_version_greater_than
+from ..extras.path_utils import expand_env_vars
 from .data_args import DataArguments
 from .evaluation_args import EvaluationArguments
 from .finetuning_args import FinetuningArguments
@@ -61,11 +62,13 @@ def read_args(args: Optional[Union[dict[str, Any], list[str]]] = None) -> Union[
 
     if sys.argv[1].endswith(".yaml") or sys.argv[1].endswith(".yml"):
         override_config = OmegaConf.from_cli(sys.argv[2:])
-        dict_config = OmegaConf.load(Path(sys.argv[1]).absolute())
+        config_path = Path(sys.argv[1]).absolute()
+        dict_config = OmegaConf.create(expand_env_vars(config_path.read_text(encoding="utf-8")))
         return OmegaConf.to_container(OmegaConf.merge(dict_config, override_config))
     elif sys.argv[1].endswith(".json"):
         override_config = OmegaConf.from_cli(sys.argv[2:])
-        dict_config = OmegaConf.load(Path(sys.argv[1]).absolute())
+        config_path = Path(sys.argv[1]).absolute()
+        dict_config = OmegaConf.create(expand_env_vars(config_path.read_text(encoding="utf-8")))
         return OmegaConf.to_container(OmegaConf.merge(dict_config, override_config))
     else:
         return sys.argv[1:]

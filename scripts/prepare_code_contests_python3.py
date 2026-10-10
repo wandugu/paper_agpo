@@ -5,11 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from datasets import load_from_disk
+from resource_paths import dataset_path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
-HF_DATASET_DIR = DATA_DIR / "code_contests" / "hf_dataset"
+HF_DATASET_DIR = Path(dataset_path("code_contests/hf_dataset", str(DATA_DIR / "code_contests" / "hf_dataset")))
 OUT_DIR = DATA_DIR / "code_contests_python3"
 DATASET_INFO = DATA_DIR / "dataset_info.json"
 PYTHON3_PROMPT_SUFFIX = (

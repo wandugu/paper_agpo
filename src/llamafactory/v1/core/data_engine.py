@@ -14,6 +14,7 @@
 
 import os
 from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
 from typing import Literal, Optional
 
 from datasets import load_dataset
@@ -21,6 +22,7 @@ from huggingface_hub import hf_hub_download
 from omegaconf import OmegaConf
 from torch.utils.data import Dataset
 
+from ...extras.path_utils import expand_env_vars
 from ..config.data_args import DataArguments
 from ..extras.types import DatasetInfo, HFDataset, Processor
 
@@ -120,11 +122,12 @@ class DataEngine(Dataset, DatasetPathMixin):
     def get_dataset_info(self) -> None:
         """Get dataset info."""
         if self.args.dataset.endswith(".yaml") and self._isfile(self.args.dataset):  # local file
-            self.dataset_info = OmegaConf.load(self._abspath(self.args.dataset))
+            config_path = Path(self._abspath(self.args.dataset))
+            self.dataset_info = OmegaConf.create(expand_env_vars(config_path.read_text(encoding="utf-8")))
         elif self.args.dataset.endswith(".yaml"):  # hf hub uri, e.g. llamafactory/v1-sft-demo/dataset_info.yaml
             repo_id, filename = os.path.split(self.args.dataset)
             filepath = hf_hub_download(repo_id=repo_id, filename=filename, repo_type="dataset")
-            self.dataset_info = OmegaConf.load(filepath)
+            self.dataset_info = OmegaConf.create(expand_env_vars(Path(filepath).read_text(encoding="utf-8")))
         elif self._exists(self.args.dataset):  # local file(s)
             self.dataset_info = {"default": {"file_name": self.args.dataset}}
         else:  # hf hub dataset, e.g. llamafactory/v1-sft-demo

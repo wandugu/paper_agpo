@@ -1,6 +1,5 @@
 import argparse
 import hashlib
-import json
 import os
 import re
 import shutil
@@ -15,6 +14,7 @@ import uvicorn
 from datasets import load_from_disk
 from fastapi import FastAPI
 from pydantic import BaseModel
+from resource_paths import dataset_path
 
 
 USER_BLOCK_RE = re.compile(r"<\|im_start\|>user\n(.*?)<\|im_end\|>", re.DOTALL)
@@ -440,7 +440,9 @@ def create_app(
     return app
 
 
-default_dataset_dir = Path(os.environ.get("CODE_REWARD_DATA", "data/code_contests/hf_dataset"))
+default_dataset_dir = Path(
+    os.environ.get("CODE_REWARD_DATA", dataset_path("code_contests/hf_dataset", "data/code_contests/hf_dataset"))
+)
 default_test_suites = parse_test_suites(os.environ.get("CODE_REWARD_TEST_SUITES", "public,generated"))
 default_max_tests = int(os.environ.get("CODE_REWARD_MAX_TESTS", "8"))
 default_timeout = float(os.environ.get("CODE_REWARD_TIMEOUT", "2.0"))

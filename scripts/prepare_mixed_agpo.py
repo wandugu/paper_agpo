@@ -6,12 +6,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from resource_paths import dataset_path
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 OUT_DIR = DATA_DIR / "mixed_agpo"
 DATASET_INFO = DATA_DIR / "dataset_info.json"
 SEED = "mixed-agpo-v1"
+
+
+def input_dir(name: str) -> Path:
+    fallback = DATA_DIR / name
+    return Path(dataset_path(name, str(fallback)))
 
 
 @dataclass(frozen=True)
@@ -36,14 +43,14 @@ SPECS = (
     DatasetSpec(
         name="gsm8k",
         display_name="GSM8K",
-        train=(FileRef("rl_train", DATA_DIR / "gsm8k" / "rl_train.json"),),
-        test=(FileRef("rl_test", DATA_DIR / "gsm8k" / "rl_test.json"),),
+        train=(FileRef("rl_train", input_dir("gsm8k") / "rl_train.json"),),
+        test=(FileRef("rl_test", input_dir("gsm8k") / "rl_test.json"),),
     ),
     DatasetSpec(
         name="math",
         display_name="MATH",
-        train=(FileRef("train", DATA_DIR / "math" / "train.json"),),
-        test=(FileRef("test", DATA_DIR / "math" / "test.json"),),
+        train=(FileRef("train", input_dir("math") / "train.json"),),
+        test=(FileRef("test", input_dir("math") / "test.json"),),
     ),
     DatasetSpec(
         name="mmlu_stem",
@@ -55,24 +62,24 @@ SPECS = (
     DatasetSpec(
         name="cmath",
         display_name="CMATH",
-        train_pool=(FileRef("validation", DATA_DIR / "cmath" / "validation.json"),),
-        test=(FileRef("test", DATA_DIR / "cmath" / "test.json"),),
+        train_pool=(FileRef("validation", input_dir("cmath") / "validation.json"),),
+        test=(FileRef("test", input_dir("cmath") / "test.json"),),
         validation_ratio=0.10,
     ),
     DatasetSpec(
         name="sat_math",
         display_name="SAT-Math",
-        pool=(FileRef("test", DATA_DIR / "agieval" / "sat_math_test.json"),),
+        pool=(FileRef("test", input_dir("agieval") / "sat_math_test.json"),),
     ),
     DatasetSpec(
         name="gaokao_mathqa",
         display_name="GaokaoMath-QA",
-        pool=(FileRef("test", DATA_DIR / "agieval" / "gaokao_mathqa_test.json"),),
+        pool=(FileRef("test", input_dir("agieval") / "gaokao_mathqa_test.json"),),
     ),
     DatasetSpec(
         name="gaokao_mathcloze",
         display_name="GaokaoMath-Cloze",
-        pool=(FileRef("test", DATA_DIR / "agieval" / "gaokao_mathcloze_test.json"),),
+        pool=(FileRef("test", input_dir("agieval") / "gaokao_mathcloze_test.json"),),
     ),
     DatasetSpec(
         name="ocw_courses",
@@ -82,9 +89,9 @@ SPECS = (
     DatasetSpec(
         name="code_contests",
         display_name="CodeContests",
-        train=(FileRef("rl_train", DATA_DIR / "code_contests" / "rl_train.jsonl"),),
-        validation=(FileRef("rl_valid", DATA_DIR / "code_contests" / "rl_valid.jsonl"),),
-        test=(FileRef("rl_test", DATA_DIR / "code_contests" / "rl_test.jsonl"),),
+        train=(FileRef("rl_train", input_dir("code_contests") / "rl_train.jsonl"),),
+        validation=(FileRef("rl_valid", input_dir("code_contests") / "rl_valid.jsonl"),),
+        test=(FileRef("rl_test", input_dir("code_contests") / "rl_test.jsonl"),),
     ),
 )
 
@@ -169,7 +176,10 @@ def collect(refs: tuple[FileRef, ...], spec: DatasetSpec) -> list[dict[str, Any]
 
         for index, row in enumerate(load_rows(ref.path)):
             copied = dict(row)
-            copied["_source_file"] = ref.path.relative_to(ROOT).as_posix()
+            try:
+                copied["_source_file"] = ref.path.relative_to(ROOT).as_posix()
+            except ValueError:
+                copied["_source_file"] = ref.path.as_posix()
             copied["_source_split"] = ref.split
             copied["_source_index"] = index
             copied["_dataset_name"] = spec.name

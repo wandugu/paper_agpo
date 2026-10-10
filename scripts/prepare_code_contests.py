@@ -3,10 +3,11 @@ import logging
 from pathlib import Path
 
 from datasets import DatasetDict, load_dataset
+from resource_paths import dataset_path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT_DIR = ROOT / "data" / "code_contests"
+OUT_DIR = Path(dataset_path("code_contests", str(ROOT / "data" / "code_contests")))
 HF_DATASET_DIR = OUT_DIR / "hf_dataset"
 
 LANG_PRIORITY = ["PYTHON3", "PYTHON", "CPP", "JAVA"]

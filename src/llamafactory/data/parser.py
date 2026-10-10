@@ -21,6 +21,7 @@ from huggingface_hub import hf_hub_download
 
 from ..extras.constants import DATA_CONFIG
 from ..extras.misc import use_modelscope, use_openmind
+from ..extras.path_utils import expand_env_tree
 
 
 @dataclass
@@ -36,6 +37,7 @@ class DatasetAttr:
     subset: Optional[str] = None
     split: str = "train"
     folder: Optional[str] = None
+    dataset_dir: Optional[str] = None
     num_samples: Optional[int] = None
     # common columns
     system: Optional[str] = None
@@ -75,6 +77,7 @@ class DatasetAttr:
         self.set_attr("subset", attr)
         self.set_attr("split", attr, default="train")
         self.set_attr("folder", attr)
+        self.set_attr("dataset_dir", attr)
         self.set_attr("num_samples", attr)
 
         if "columns" in attr:
@@ -96,7 +99,7 @@ def get_dataset_list(dataset_names: Optional[list[str]], dataset_dir: Union[str,
         dataset_names = []
 
     if isinstance(dataset_dir, dict):
-        dataset_info = dataset_dir
+        dataset_info = expand_env_tree(dataset_dir)
     elif dataset_dir == "ONLINE":
         dataset_info = None
     else:
@@ -107,7 +110,7 @@ def get_dataset_list(dataset_names: Optional[list[str]], dataset_dir: Union[str,
 
         try:
             with open(config_path) as f:
-                dataset_info = json.load(f)
+                dataset_info = expand_env_tree(json.load(f))
         except Exception as err:
             if len(dataset_names) != 0:
                 raise ValueError(f"Cannot open {config_path} due to {str(err)}.")

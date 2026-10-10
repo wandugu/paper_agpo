@@ -1,6 +1,7 @@
 {
   "gsm8k_train": {
     "file_name": "gsm8k/train.json",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -9,6 +10,7 @@
   },
   "gsm8k_test": {
     "file_name": "gsm8k/test.json",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -17,6 +19,7 @@
   },
   "gsm8k_rl_train": {
     "file_name": "gsm8k/rl_train.json",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -25,6 +28,7 @@
   },
   "gsm8k_rl_test": {
     "file_name": "gsm8k/rl_test.json",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -57,6 +61,7 @@
   },
   "math_train": {
     "file_name": "math/train.json",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -65,6 +70,7 @@
   },
   "math_test": {
     "file_name": "math/test.json",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -73,6 +79,7 @@
   },
   "cmath_validation": {
     "file_name": "cmath/validation.json",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -81,6 +88,7 @@
   },
   "cmath_test": {
     "file_name": "cmath/test.json",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -89,6 +97,7 @@
   },
   "sat_math_test": {
     "file_name": "agieval/sat_math_test.json",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -97,6 +106,7 @@
   },
   "gaokao_mathqa_test": {
     "file_name": "agieval/gaokao_mathqa_test.json",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -105,6 +115,7 @@
   },
   "gaokao_mathcloze_test": {
     "file_name": "agieval/gaokao_mathcloze_test.json",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -121,6 +132,7 @@
   },
   "code_contests_sft_train": {
     "file_name": "code_contests/sft_train.jsonl",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -129,6 +141,7 @@
   },
   "code_contests_sft_valid": {
     "file_name": "code_contests/sft_valid.jsonl",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -137,6 +150,7 @@
   },
   "code_contests_sft_test": {
     "file_name": "code_contests/sft_test.jsonl",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -145,6 +159,7 @@
   },
   "code_contests_rl_train": {
     "file_name": "code_contests/rl_train.jsonl",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -153,6 +168,7 @@
   },
   "code_contests_rl_valid": {
     "file_name": "code_contests/rl_valid.jsonl",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",
@@ -161,6 +177,7 @@
   },
   "code_contests_rl_test": {
     "file_name": "code_contests/rl_test.jsonl",
+    "dataset_dir": "${DATASET_ROOT:-}",
     "columns": {
       "prompt": "instruction",
       "query": "input",

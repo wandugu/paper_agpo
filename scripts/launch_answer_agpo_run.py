@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-import yaml
+from resource_paths import load_yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -39,7 +39,7 @@ def clean_env() -> dict[str, str]:
 
 
 def load_reward_config(config_path: Path) -> dict[str, str | int]:
-    config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    config = load_yaml(config_path)
     reward_model = config.get("reward_model")
     if not reward_model:
         raise SystemExit(f"Missing reward_model in {config_path}")

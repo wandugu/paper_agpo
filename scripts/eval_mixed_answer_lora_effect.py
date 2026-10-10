@@ -12,11 +12,13 @@ import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from answer_reward_server import AnswerScorer  # noqa: E402
+from resource_paths import model_path  # noqa: E402
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -308,7 +310,7 @@ def summarize(results: list[dict[str, Any]], model_labels: list[str], compare_fr
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate answer-only LoRA adapters on a held-out mixed_answer split.")
-    parser.add_argument("--model", default="models/Qwen3-0.6B")
+    parser.add_argument("--model", default=model_path("Qwen3-0.6B", "models/Qwen3-0.6B"))
     parser.add_argument("--data", default="data/mixed_agpo/mixed_answer/validation.jsonl")
     parser.add_argument("--out", required=True)
     parser.add_argument("--adapter", action="append", type=parse_adapter, default=[])

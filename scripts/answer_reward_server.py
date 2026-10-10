@@ -9,6 +9,8 @@ from typing import Any
 import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
+from resource_paths import dataset_path
+
 
 try:
     import sympy as sp
@@ -720,7 +722,9 @@ def create_app(data_path: Path) -> FastAPI:
     return app
 
 
-default_data_path = Path(os.environ.get("ANSWER_REWARD_DATA", "data/gsm8k/rl_train.json"))
+default_data_path = Path(
+    os.environ.get("ANSWER_REWARD_DATA", dataset_path("gsm8k/rl_train.json", "data/gsm8k/rl_train.json"))
+)
 app = create_app(default_data_path)
 
 

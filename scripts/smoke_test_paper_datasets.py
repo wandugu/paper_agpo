@@ -9,6 +9,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from resource_paths import expand_env_tree, model_path
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
@@ -19,14 +21,19 @@ OUTPUT_DIR = ROOT / "saves" / "smoke"
 
 
 def load_dataset_info() -> dict[str, Any]:
-    return json.loads(INFO_PATH.read_text(encoding="utf-8"))
+    return expand_env_tree(json.loads(INFO_PATH.read_text(encoding="utf-8")))
+
+
+def dataset_file_path(entry: dict[str, Any]) -> Path:
+    dataset_dir = Path(entry.get("dataset_dir") or str(DATA_DIR))
+    return dataset_dir / entry.get("file_name", "")
 
 
 def local_dataset_keys(info: dict[str, Any]) -> list[str]:
     keys = []
     for key, value in info.items():
         file_name = value.get("file_name")
-        if file_name and (DATA_DIR / file_name).exists():
+        if file_name and dataset_file_path(value).exists():
             keys.append(key)
     return keys
 
@@ -38,7 +45,10 @@ def llama_factory_cli() -> str:
 
 
 def to_posix(path: Path) -> str:
-    return path.relative_to(ROOT).as_posix()
+    try:
+        return path.relative_to(ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 def write_config(args: argparse.Namespace, dataset_key: str, reward_url: str) -> Path:
@@ -137,8 +147,7 @@ def terminate(proc: subprocess.Popen[Any]) -> None:
 
 
 def run_one(args: argparse.Namespace, info: dict[str, Any], dataset_key: str, port: int) -> dict[str, Any]:
-    file_name = info[dataset_key]["file_name"]
-    data_path = DATA_DIR / file_name
+    data_path = dataset_file_path(info[dataset_key])
     reward_url = f"http://127.0.0.1:{port}"
     health_url = f"{reward_url}/health"
     config_path = write_config(args, dataset_key, reward_url)
@@ -224,7 +233,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run one-step AGPO smoke tests for local datasets.")
     parser.add_argument("--only", nargs="*", help="Dataset keys to test. Defaults to every local dataset in dataset_info.json.")
     parser.add_argument("--start-port", type=int, default=8100)
-    parser.add_argument("--model-path", default="models/Qwen3-0.6B")
+    parser.add_argument("--model-path", default=model_path("Qwen3-0.6B", "models/Qwen3-0.6B"))
     parser.add_argument("--max-samples", type=int, default=2)
     parser.add_argument("--max-steps", type=int, default=1)
     parser.add_argument("--max-new-tokens", type=int, default=16)
@@ -243,7 +252,7 @@ def main() -> int:
     if unknown:
         raise ValueError(f"Unknown dataset keys: {unknown}")
 
-    missing = [key for key in dataset_keys if not (DATA_DIR / info[key].get("file_name", "")).exists()]
+    missing = [key for key in dataset_keys if not dataset_file_path(info[key]).exists()]
     if missing:
         raise FileNotFoundError(f"Missing local dataset files for keys: {missing}")
 

@@ -27,9 +27,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import yaml
+from scripts.resource_paths import expand_env_tree, expand_env_vars
 
 config_path = Path(sys.argv[1])
-config = yaml.safe_load(config_path.read_text(encoding='utf-8')) or {}
+config = expand_env_tree(yaml.safe_load(config_path.read_text(encoding='utf-8')) or {})
 reward_model = config.get('reward_model')
 if not reward_model:
     raise SystemExit(f'Missing reward_model in {config_path}')
@@ -37,6 +38,8 @@ if not reward_model:
 answer_data = config.get('reward_data')
 if not answer_data:
     raise SystemExit(f'Missing reward_data in {config_path}')
+
+code_dataset_dir = expand_env_vars(str(config.get('code_reward_dataset_dir', '${DATASET_ROOT:-data}/code_contests/hf_dataset')))
 
 parsed = urlparse(reward_model)
 if parsed.scheme not in {'http', 'https'} or not parsed.hostname:
@@ -46,7 +49,7 @@ port = parsed.port or (443 if parsed.scheme == 'https' else 80)
 print(json.dumps({
     'url': reward_model.rstrip('/'),
     'answer_data': str(answer_data),
-    'code_dataset_dir': str(config.get('code_reward_dataset_dir', 'data/code_contests/hf_dataset')),
+    'code_dataset_dir': code_dataset_dir,
     'host': parsed.hostname,
     'port': port,
     'health_url': reward_model.rstrip('/') + '/health',

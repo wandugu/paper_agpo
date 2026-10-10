@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 from ...extras.constants import DATA_CONFIG
 from ...extras.packages import is_gradio_available
+from ...extras.path_utils import expand_env_tree
 
 
 if is_gradio_available():
@@ -29,6 +30,12 @@ if TYPE_CHECKING:
 
 
 PAGE_SIZE = 2
+
+
+def _dataset_file_path(dataset_dir: str, dataset_info: dict[str, dict[str, Any]], dataset: str) -> str:
+    entry = dataset_info[dataset]
+    entry_dir = entry.get("dataset_dir") or dataset_dir
+    return os.path.join(entry_dir, entry["file_name"])
 
 
 def prev_page(page_index: int) -> int:
@@ -43,14 +50,14 @@ def can_preview(dataset_dir: str, dataset: list) -> "gr.Button":
     r"""Check if the dataset is a local dataset."""
     try:
         with open(os.path.join(dataset_dir, DATA_CONFIG), encoding="utf-8") as f:
-            dataset_info = json.load(f)
+            dataset_info = expand_env_tree(json.load(f))
     except Exception:
         return gr.Button(interactive=False)
 
     if len(dataset) == 0 or "file_name" not in dataset_info[dataset[0]]:
         return gr.Button(interactive=False)
 
-    data_path = os.path.join(dataset_dir, dataset_info[dataset[0]]["file_name"])
+    data_path = _dataset_file_path(dataset_dir, dataset_info, dataset[0])
     if os.path.isfile(data_path) or (os.path.isdir(data_path) and os.listdir(data_path)):
         return gr.Button(interactive=True)
     else:
@@ -70,9 +77,9 @@ def _load_data_file(file_path: str) -> list[Any]:
 def get_preview(dataset_dir: str, dataset: list, page_index: int) -> tuple[int, list, "gr.Column"]:
     r"""Get the preview samples from the dataset."""
     with open(os.path.join(dataset_dir, DATA_CONFIG), encoding="utf-8") as f:
-        dataset_info = json.load(f)
+        dataset_info = expand_env_tree(json.load(f))
 
-    data_path = os.path.join(dataset_dir, dataset_info[dataset[0]]["file_name"])
+    data_path = _dataset_file_path(dataset_dir, dataset_info, dataset[0])
     if os.path.isfile(data_path):
         data = _load_data_file(data_path)
     else:

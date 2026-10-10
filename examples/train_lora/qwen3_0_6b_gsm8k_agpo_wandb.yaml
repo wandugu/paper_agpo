@@ -1,8 +1,8 @@
 ### model
-model_name_or_path: models/Qwen3-0.6B
+model_name_or_path: ${MODEL_ROOT:-models}/Qwen3-0.6B
 reward_model: http://127.0.0.1:8008
 reward_model_type: api
-reward_data: data/gsm8k/rl_train.json
+reward_data: ${DATASET_ROOT:-data}/gsm8k/rl_train.json
 trust_remote_code: true
 
 ### method

@@ -10,12 +10,14 @@ import torch
 from peft import PeftModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from hybrid_reward_server import HybridRewardScorer  # noqa: E402
 from code_reward_server import parse_test_suites  # noqa: E402
+from hybrid_reward_server import HybridRewardScorer  # noqa: E402
+from resource_paths import dataset_path, model_path  # noqa: E402
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -92,10 +94,12 @@ def mean(values: list[float]) -> float:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Compare base and LoRA rewards on mixed_all validation samples.")
-    parser.add_argument("--model", default="models/Qwen3-0.6B")
+    parser.add_argument("--model", default=model_path("Qwen3-0.6B", "models/Qwen3-0.6B"))
     parser.add_argument("--adapter", default="saves/qwen3-0.6b/lora/mixed_all_agpo_200")
     parser.add_argument("--data", default="data/mixed_agpo/mixed_all/validation.jsonl")
-    parser.add_argument("--code-dataset-dir", default="data/code_contests/hf_dataset")
+    parser.add_argument(
+        "--code-dataset-dir", default=dataset_path("code_contests/hf_dataset", "data/code_contests/hf_dataset")
+    )
     parser.add_argument("--out", default="saves/qwen3-0.6b/lora/mixed_all_agpo_200/eval_mixed_all_validation.jsonl")
     parser.add_argument("--answer-count", type=int, default=12)
     parser.add_argument("--code-count", type=int, default=4)

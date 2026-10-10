@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-import json
 import sys
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -22,6 +21,7 @@ from omegaconf import OmegaConf
 from transformers import HfArgumentParser
 
 from ...extras.misc import is_env_enabled
+from ...extras.path_utils import expand_env_vars
 from .data_args import DataArguments
 from .model_args import ModelArguments
 from .sample_args import SampleArguments
@@ -38,11 +38,13 @@ def get_args(
     if args is None:
         if len(sys.argv) > 1 and (sys.argv[1].endswith(".yaml") or sys.argv[1].endswith(".yml")):
             override_config = OmegaConf.from_cli(sys.argv[2:])
-            dict_config = OmegaConf.load(Path(sys.argv[1]).absolute())
+            config_path = Path(sys.argv[1]).absolute()
+            dict_config = OmegaConf.create(expand_env_vars(config_path.read_text(encoding="utf-8")))
             args = OmegaConf.to_container(OmegaConf.merge(dict_config, override_config))
         elif len(sys.argv) > 1 and sys.argv[1].endswith(".json"):
             override_config = OmegaConf.from_cli(sys.argv[2:])
-            dict_config = OmegaConf.create(json.load(Path(sys.argv[1]).absolute()))
+            config_path = Path(sys.argv[1]).absolute()
+            dict_config = OmegaConf.create(expand_env_vars(config_path.read_text(encoding="utf-8")))
             args = OmegaConf.to_container(OmegaConf.merge(dict_config, override_config))
         else:  # list of strings
             args = sys.argv[1:]

@@ -26,9 +26,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import yaml
+from scripts.resource_paths import expand_env_tree
 
 config_path = Path(r"$agpoConfig")
-config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+config = expand_env_tree(yaml.safe_load(config_path.read_text(encoding="utf-8")) or {})
 reward_model = config.get("reward_model")
 if not reward_model:
     raise SystemExit(f"Missing reward_model in {config_path}")
